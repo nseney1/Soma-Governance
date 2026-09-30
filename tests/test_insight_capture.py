@@ -95,6 +95,7 @@ class TestCaptureInsight:
 
     def test_covering_cells_detected(self, tmp_path):
         """When a cell's target_paths match context_files, it appears in covering_cells."""
+        pytest.importorskip("yaml", reason="Cell coverage detection requires pyyaml")
         from enzymes.insight_capture import capture_insight
 
         workspace = str(tmp_path)
