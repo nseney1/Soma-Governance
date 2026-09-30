@@ -25,6 +25,7 @@ class SubagentMetrics:
     final_failed: int = 0
     file_writes: int = 0
     fix_cycles: int = 0  # writes after first failure
+    human_insights_received: int = 0  # [HUMAN_INSIGHT] annotations from user
 
 
 # Patterns to detect pytest result lines
@@ -90,6 +91,11 @@ def extract_metrics(transcript_path: str) -> SubagentMetrics:
                 step = json.loads(line)
             except json.JSONDecodeError:
                 continue
+
+            # Count [HUMAN_INSIGHT] annotations from user
+            if (step.get('type') == 'USER_INPUT' and
+                    '[HUMAN_INSIGHT]' in step.get('content', '')):
+                metrics.human_insights_received += 1
 
             if _is_pytest_step(step):
                 content = step.get('content', '')

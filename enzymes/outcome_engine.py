@@ -303,6 +303,63 @@ def capture_mcp_outcomes(workspace):
     return outcomes
 
 
+def capture_human_insight_signals(workspace):
+    """Read human insight annotations and produce fitness signals.
+
+    Reads .soma/human_insights.jsonl and matches insights to cells.
+    Returns a list of signal dicts with:
+      - cell: cell name (or None for blind spots)
+      - weight: configurable signal weight (default 0.5)
+      - signal_type: 'human_insight' or 'blind_spot'
+      - files: list of context files from the insight
+    """
+    insights_file = os.path.join(workspace, '.soma', 'human_insights.jsonl')
+    if not os.path.isfile(insights_file):
+        return []
+
+    # Read configurable weight
+    weight = 0.5
+    config_path = os.path.join(workspace, '.soma', 'config.yaml')
+    if os.path.isfile(config_path):
+        try:
+            with open(config_path, 'r', encoding='utf-8') as f:
+                config = yaml.safe_load(f) or {}
+            weight = float(config.get('insight_signal_weight', 0.5))
+        except Exception:
+            pass
+
+    signals = []
+    try:
+        with open(insights_file, 'r', encoding='utf-8') as f:
+            for line in f:
+                if not line.strip():
+                    continue
+                try:
+                    record = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+
+                if record.get('was_covered'):
+                    # Covered insight — boost matching cells
+                    for cell_name in record.get('covering_cells', []):
+                        signals.append({
+                            'cell': cell_name,
+                            'weight': weight,
+                            'signal_type': 'human_insight',
+                            'files': record.get('context_files', []),
+                        })
+                else:
+                    # Uncovered insight — governance blind spot
+                    signals.append({
+                        'cell': None,
+                        'weight': weight,
+                        'signal_type': 'blind_spot',
+                        'files': record.get('context_files', []),
+                    })
+    except Exception:
+        pass
+    return signals
+
 # ── Frontmatter Parser ────────────────────────────────────────────────
 
 def _parse_frontmatter(content):

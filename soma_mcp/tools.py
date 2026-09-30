@@ -322,6 +322,37 @@ TOOL_DEFINITIONS = [
             },
             "required": ["file_path", "proposed_content"]
         }
+    },
+    {
+        "name": "soma_capture_insight",
+        "description": (
+            "Capture a human insight about the codebase. Records the insight, "
+            "correlates it with governance cell coverage, and persists it to "
+            ".soma/human_insights.jsonl for fitness scoring."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "insight": {
+                    "type": "string",
+                    "description": "Free-text description of the insight"
+                },
+                "context_files": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Files the insight relates to (at least one required)"
+                },
+                "source_conversation": {
+                    "type": "string",
+                    "description": "Optional conversation/session identifier"
+                },
+                "category": {
+                    "type": "string",
+                    "description": "Optional category tag (e.g. contract_mismatch)"
+                }
+            },
+            "required": ["insight", "context_files"]
+        }
     }
 ]
 
@@ -422,6 +453,27 @@ def execute_tool(name: str, args: dict):
         with open(outcomes_file, 'a', encoding="utf-8") as f:
             f.write(json.dumps(outcome) + '\n')
         return {'status': 'recorded', 'outcome': outcome}
+
+    elif name == "soma_capture_insight":
+        workspace = resolve_workspace()
+        try:
+            from enzymes.insight_capture import capture_insight
+        except ImportError:
+            return {"error": "enzymes.insight_capture is not importable."}
+        try:
+            record = capture_insight(
+                workspace=workspace,
+                insight=args.get('insight', ''),
+                context_files=args.get('context_files', []),
+                source_conversation=args.get('source_conversation'),
+                category=args.get('category'),
+            )
+        except ValueError as exc:
+            return {"error": str(exc), "status": _STATUS_FAIL}
+        return {
+            'status': 'recorded',
+            'insight': record,
+        }
 
     # All other tools require the full SDK (pyyaml)
     if not gov:
