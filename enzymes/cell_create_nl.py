@@ -92,7 +92,7 @@ def create_cell_from_insight_cluster(cluster: dict, workspace: str) -> str:
     """
     import re
 
-    category = cluster.get("common_category", "unknown")
+    category = cluster.get("common_category") or "unknown"
     files = cluster.get("common_files", [])
     confidence = cluster.get("confidence", 0.5)
     files_str = ", ".join(files) if files else "project-wide"
@@ -141,13 +141,35 @@ def create_cell_from_insight_cluster(cluster: dict, workspace: str) -> str:
     cell_content = f"---\n{fm_text}---\n\n{body}"
 
     # Determine filename
-    slug = re.sub(r"[^a-z0-9]+", "-", category.lower())[:50].strip("-")
+    slug = re.sub(r"[^a-z0-9]+", "-", category.lower())[:50].strip("-") or "unknown"
     filename = f"vacuole-{slug}.md"
 
     target_dir = os.path.join(workspace, ".soma", "cells", "vacuoles")
     os.makedirs(target_dir, exist_ok=True)
 
     filepath = os.path.join(target_dir, filename)
+
+    # Collision safety: preserve existing cell fitness metadata
+    if os.path.isfile(filepath):
+        try:
+            with open(filepath, 'r', encoding='utf-8') as f:
+                existing = f.read()
+            if '---' in existing:
+                end = existing.find('---', 3)
+                if end != -1:
+                    fm_text_existing = existing[3:end].strip()
+                    if _yaml is not None:
+                        existing_fm = _yaml.safe_load(fm_text_existing) or {}
+                    else:
+                        existing_fm = {}
+                    existing_fitness = existing_fm.get('fitness')
+                    if existing_fitness and isinstance(existing_fitness, dict):
+                        if existing_fitness.get('triggers', 0) > 0:
+                            # Cell has accumulated fitness data — don't overwrite
+                            return filepath
+        except Exception:
+            pass
+
     with open(filepath, "w", encoding="utf-8") as f:
         f.write(cell_content)
 
@@ -173,7 +195,10 @@ def main():
     args = parser.parse_args()
     
     if args.from_insight_cluster:
-        from enzymes.insight_correlator import cluster_insights, generate_cell_candidates
+        try:
+            from enzymes.insight_correlator import cluster_insights
+        except ImportError:
+            from insight_correlator import cluster_insights
         workspace = resolve_workspace(__file__)
         clusters = cluster_insights(workspace)
         if not clusters:

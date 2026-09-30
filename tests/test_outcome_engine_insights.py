@@ -55,7 +55,12 @@ class TestCaptureHumanInsightSignals:
 
         signals = capture_human_insight_signals(workspace)
         assert len(signals) >= 1
-        assert any(s["cell"] == "vacuole-api-check" for s in signals)
+        matching = [s for s in signals if s["cell"] == "vacuole-api-check"]
+        assert len(matching) == 1
+        # Verify update_cell_fitness compatible schema
+        assert os.path.isfile(matching[0]["_path"])
+        assert matching[0]["signal"] == pytest.approx(0.5)
+        assert matching[0]["verified"] is True
 
     def test_signal_weight_is_configurable(self, tmp_path):
         """Human insight signal weight reads from .soma/config if present."""
@@ -69,11 +74,21 @@ class TestCaptureHumanInsightSignals:
              "was_covered": True, "covering_cells": ["vacuole-test"]},
         ])
 
-        # Default weight should be 0.5
+        # Default weight should be 0.5 (no config file)
         signals = capture_human_insight_signals(workspace)
         matching = [s for s in signals if s["cell"] == "vacuole-test"]
         assert len(matching) == 1
         assert matching[0]["weight"] == pytest.approx(0.5, abs=0.01)
+
+        # With config file: weight should be overridden
+        config_path = os.path.join(workspace, ".soma", "config.yaml")
+        with open(config_path, "w") as f:
+            f.write("insight_signal_weight: 0.8\n")
+
+        signals = capture_human_insight_signals(workspace)
+        matching = [s for s in signals if s["cell"] == "vacuole-test"]
+        assert len(matching) == 1
+        assert matching[0]["weight"] == pytest.approx(0.8, abs=0.01)
 
     def test_no_insights_no_signals(self, tmp_path):
         """When .soma/human_insights.jsonl doesn't exist, return empty list."""
