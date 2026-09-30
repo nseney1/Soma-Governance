@@ -43,7 +43,10 @@ def main():
     total_cells = 0
     cell_types = {}
     if os.path.isdir(cells_dir):
-        import yaml
+        try:
+            import yaml
+        except ImportError:
+            yaml = None
         for cell_file in glob.glob(os.path.join(cells_dir, '**', '*.md'), recursive=True):
             if os.path.basename(cell_file) == 'README.md': continue
             total_cells += 1

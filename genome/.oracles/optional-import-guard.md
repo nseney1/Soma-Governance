@@ -48,9 +48,32 @@ When reviewing or writing code that adds an `import` statement:
 
 ## Violation Detection
 
+The naive `grep '^import yaml$'` misses compound imports (`import os, yaml`)
+and indented imports inside functions. Use AST-based detection:
+
 ```bash
-# Find all unguarded optional imports
-grep -rn '^import yaml$' enzymes/ soma_mcp/ immune_system/ --include='*.py'
+# AST-based scan for unguarded yaml imports
+python3 -c "
+import ast, glob
+for f in glob.glob('enzymes/**/*.py', recursive=True) + \
+         glob.glob('soma_mcp/**/*.py', recursive=True) + \
+         glob.glob('soma_sdk/**/*.py', recursive=True):
+    if '__pycache__' in f: continue
+    tree = ast.parse(open(f).read())
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            if any(a.name == 'yaml' for a in node.names):
+                in_try = any(isinstance(p, ast.Try) and
+                    any(c is node for c in ast.walk(p))
+                    for p in ast.walk(tree))
+                if not in_try:
+                    print(f'{f}:{node.lineno}')
+"
 ```
 
-Any match is a violation. The correct form will show up as `import yaml` indented under `try:`.
+Also check shell scripts with embedded Python:
+```bash
+grep -n 'import.*yaml' enzymes/*.sh | grep -v 'try:'
+```
+
+Any match is a violation.

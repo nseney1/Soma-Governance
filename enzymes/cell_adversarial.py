@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """Adversarial cell testing: probe cells for bypass vulnerabilities."""
-import os, sys, argparse, glob, yaml, json, subprocess
+import os, sys, argparse, glob, json, subprocess
+try:
+    import yaml
+except ImportError:
+    yaml = None
 from fnmatch import fnmatch
 from soma_resolve import resolve_workspace
 

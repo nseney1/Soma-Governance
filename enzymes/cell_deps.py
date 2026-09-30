@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-import os, sys, argparse, glob, yaml
+import os, sys, argparse, glob
+try:
+    import yaml
+except ImportError:
+    yaml = None
 from fnmatch import fnmatch
 from soma_resolve import resolve_workspace
 

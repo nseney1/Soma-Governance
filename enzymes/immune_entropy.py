@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """Governance entropy rate: measure information production in the governance system."""
-import os, sys, argparse, glob, yaml, json, math
+import os, sys, argparse, glob, json, math
+try:
+    import yaml
+except ImportError:
+    yaml = None
 from datetime import datetime, timedelta
 from soma_resolve import resolve_workspace
 

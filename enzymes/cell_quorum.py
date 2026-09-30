@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-import os, sys, argparse, glob, yaml, json
+import os, sys, argparse, glob, json
+try:
+    import yaml
+except ImportError:
+    yaml = None
 from fnmatch import fnmatch
 from datetime import datetime
 from datetime import timezone

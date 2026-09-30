@@ -10,7 +10,11 @@ Usage:
     python cell_enforce.py --dry-run          # Preview without writing
     python cell_enforce.py --list             # List all enforcement artifacts
 """
-import os, sys, argparse, glob, yaml, json, re
+import os, sys, argparse, glob, json, re
+try:
+    import yaml
+except ImportError:
+    yaml = None
 from datetime import datetime
 from datetime import timezone
 from soma_resolve import resolve_workspace

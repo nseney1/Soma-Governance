@@ -5,7 +5,10 @@ import sys
 import re
 from pathlib import Path
 
-import yaml
+try:
+    import yaml
+except ImportError:
+    yaml = None
 
 
 class Governance:
