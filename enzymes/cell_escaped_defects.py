@@ -13,10 +13,17 @@ Usage:
     python cell_escaped_defects.py --scan-git --since "3 days ago"
     python cell_escaped_defects.py --report
 """
-import os, sys, argparse, glob, yaml, json, subprocess, math
+import os, sys, argparse, glob, json, subprocess, math
+try:
+    import yaml
+except ImportError:
+    yaml = None
 from datetime import datetime
 from datetime import timezone
-from soma_resolve import resolve_workspace
+try:
+    from soma_resolve import resolve_workspace
+except ImportError:
+    resolve_workspace = None
 
 def match_glob(filepath, pattern):
     """Match a filepath against a glob pattern, supporting ** globstar."""

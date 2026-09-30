@@ -27,7 +27,10 @@ if not os.path.isdir(cells_dir):
     sys.exit(0)
 
 cells = glob.glob(os.path.join(cells_dir, '**', '*.md'), recursive=True)
-import yaml
+try:
+    import yaml
+except ImportError:
+    yaml = None
 
 triggered = []
 for f in cells:

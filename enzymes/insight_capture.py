@@ -64,8 +64,12 @@ def capture_insight(
     ValueError
         If *context_files* is empty.
     """
+    if not isinstance(context_files, list):
+        raise ValueError("context_files must be a list, not " + type(context_files).__name__)
     if not context_files:
         raise ValueError("context_files must not be empty")
+    if not insight or not insight.strip():
+        raise ValueError("insight must not be empty")
 
     import sys
     _repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

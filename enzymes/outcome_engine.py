@@ -307,7 +307,11 @@ def capture_mcp_outcomes(workspace):
 
 
 def capture_human_insight_signals(workspace):
-    """Read human insight annotations and produce fitness signals.
+    """Read NEW human insight annotations and produce fitness signals.
+
+    Uses a byte-offset cursor (.soma/insight_cursor) to only process
+    insights added since the last run, preventing runaway fitness
+    inflation from re-applying historical insights.
 
     Returns signals compatible with update_cell_fitness() schema:
       - _path: absolute path to cell file
@@ -325,6 +329,16 @@ def capture_human_insight_signals(workspace):
     insights_file = os.path.join(workspace, '.soma', 'human_insights.jsonl')
     if not os.path.isfile(insights_file):
         return []
+
+    # Read cursor — byte offset of last processed position
+    cursor_file = os.path.join(workspace, '.soma', 'insight_cursor')
+    cursor_offset = 0
+    if os.path.isfile(cursor_file):
+        try:
+            with open(cursor_file, 'r', encoding='utf-8') as f:
+                cursor_offset = int(f.read().strip())
+        except (ValueError, OSError):
+            cursor_offset = 0
 
     # Read configurable weight
     weight = 0.5
@@ -346,8 +360,10 @@ def capture_human_insight_signals(workspace):
             cell_paths[name] = cell_file
 
     signals = []
+    new_offset = cursor_offset
     try:
         with open(insights_file, 'r', encoding='utf-8') as f:
+            f.seek(cursor_offset)
             for line in f:
                 if not line.strip():
                     continue
@@ -383,8 +399,18 @@ def capture_human_insight_signals(workspace):
                         'weight': weight,
                         'files': record.get('context_files', []),
                     })
+            new_offset = f.tell()
     except Exception:
         pass
+
+    # Advance cursor so these insights aren't reprocessed
+    if new_offset > cursor_offset:
+        try:
+            with open(cursor_file, 'w', encoding='utf-8') as f:
+                f.write(str(new_offset))
+        except OSError:
+            pass
+
     return signals
 
 # ── Frontmatter Parser ────────────────────────────────────────────────
@@ -724,8 +750,12 @@ def main():
     # 3. Compute fitness signals (ACE reflector step)
     signals = compute_fitness_signals(triggered, outcomes) if triggered else []
 
-    # Merge human insight signals into fitness pipeline
-    signals.extend(cell_boosts)
+    # Merge human insight signals, deduplicating cells already scored
+    existing_paths = {s['_path'] for s in signals if '_path' in s}
+    for boost in cell_boosts:
+        if boost['_path'] not in existing_paths:
+            signals.append(boost)
+            existing_paths.add(boost['_path'])
 
     # 4. Update cells and log with full provenance
     if signals:

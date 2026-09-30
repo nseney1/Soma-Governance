@@ -11,7 +11,10 @@ since the translation task is straightforward noun-stripping and abstraction.
 import os
 import sys
 import argparse
-import yaml
+try:
+    import yaml
+except ImportError:
+    yaml = None
 import re
 
 def parse_frontmatter(content):

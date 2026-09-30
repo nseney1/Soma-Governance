@@ -8,7 +8,10 @@ import sys
 import argparse
 import glob
 import json
-import yaml
+try:
+    import yaml
+except ImportError:
+    yaml = None
 from datetime import datetime
 from datetime import timezone
 from soma_resolve import resolve_workspace

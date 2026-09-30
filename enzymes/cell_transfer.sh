@@ -55,7 +55,10 @@ TARGET_BASENAME=$(basename "$TARGET_DIR")
 SOURCE_BASENAME=$(basename "$PWD")
 
 python3 -c "
-import yaml
+try:
+    import yaml
+except ImportError:
+    yaml = None
 import sys
 import os
 import json

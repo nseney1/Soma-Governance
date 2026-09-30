@@ -5,7 +5,10 @@ import argparse
 import glob
 import json
 import time
-import yaml
+try:
+    import yaml
+except ImportError:
+    yaml = None
 from datetime import datetime
 from datetime import timezone
 from bayesian_score import bayesian_score

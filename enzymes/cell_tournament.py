@@ -3,7 +3,10 @@ import os
 import sys
 import argparse
 import glob
-import yaml
+try:
+    import yaml
+except ImportError:
+    yaml = None
 import random
 from soma_resolve import resolve_workspace
 

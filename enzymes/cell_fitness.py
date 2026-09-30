@@ -6,7 +6,10 @@ import os
 from datetime import datetime
 from datetime import timezone
 
-import yaml
+try:
+    import yaml
+except ImportError:
+    yaml = None
 from bayesian_score import bayesian_score
 from soma_resolve import resolve_workspace
 
