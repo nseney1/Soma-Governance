@@ -1,14 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-DIR="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$DIR/common.sh"
-RESOLVED_HOME=$(resolve_home)
-
 # Session Close — Stop hook
 # Exports conversation logs and syncs both repos when session ends.
 
-# Symlink-safe resolution (Thorns fix #3)
+# Symlink-safe resolution (Thorns fix #3). Must run before common.sh is
+# sourced: a lexical dirname of a symlinked hook names the link's directory.
 PRG="${BASH_SOURCE[0]}"
 while [ -h "$PRG" ]; do
   DIR="$(cd -P "$(dirname "$PRG")" && pwd)"
@@ -16,9 +13,14 @@ while [ -h "$PRG" ]; do
   [[ $PRG != /* ]] && PRG="$DIR/$PRG"
 done
 SCRIPT_DIR="$(cd -P "$(dirname "$PRG")" && pwd)"
+source "$SCRIPT_DIR/common.sh"
+RESOLVED_HOME=$(resolve_home)
 
 # Resolve repo root relative to this script (enzymes/ -> repo root)
 STEERING_REPO="$(cd -P "$SCRIPT_DIR/.." && pwd)"
+# Inline snippets run with -I (BUG-044): no CWD on sys.path, so soma_core is
+# imported from the steering repo explicitly rather than from whatever the CWD is.
+export SOMA_STEERING_REPO="$STEERING_REPO"
 LOGS_REPO="$RESOLVED_HOME/.gemini/antigravity/scratch/ai-conversation-logs"
 EXPORT_SCRIPT="$STEERING_REPO/enzymes/export_logs.sh"
 
@@ -58,7 +60,7 @@ echo '{}'
 
 # === Automated Outcome Feedback ===
 echo "Running outcome engine..."
-SCRIPTS_DIR="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPTS_DIR="$SCRIPT_DIR"
 soma_python "$SCRIPTS_DIR/outcome_engine.py" 2>/dev/null || true
 
 # === Automated Cell Evolution ===
@@ -72,7 +74,8 @@ bash "$SCRIPTS_DIR/cell_selection.sh" --execute 2>/dev/null || true
 
 # 3. Probabilistic crossover: if >5 cells with fitness >0.5, attempt one crossover
 CROSSOVER_CANDIDATES=$(soma_python -c "
-import os, glob
+import os, glob, sys
+sys.path.insert(0, os.environ['SOMA_STEERING_REPO'])
 import yaml
 from soma_core.evidence import aggregate_signals
 
@@ -105,7 +108,8 @@ fi
 
 # 4. Check for metamorphosis candidates
 soma_python -c "
-import os, glob
+import os, glob, sys
+sys.path.insert(0, os.environ['SOMA_STEERING_REPO'])
 import yaml
 from soma_core.evidence import aggregate_signals
 
@@ -157,7 +161,8 @@ fi
 
 # === Session Dashboard ===
 soma_python -c "
-import os, glob
+import os, glob, sys
+sys.path.insert(0, os.environ['SOMA_STEERING_REPO'])
 import yaml
 from soma_core.evidence import aggregate_signals
 

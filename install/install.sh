@@ -154,7 +154,8 @@ write_manifest() {
   hooks_arr="$(printf '%s' "$INSTALLED_HOOKS" | _json_array_from_lines)"
   mcp_configs_arr="$(printf '%s' "$INSTALLED_MCP_CONFIGS" | _json_array_from_lines)"
   
-  local ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+  local ts
+  ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
   local backup_path=${BACKUP_DIR:-null}
   [ "$backup_path" != "null" ] && backup_path="\"$backup_path\""
   
@@ -181,6 +182,24 @@ write_manifest() {
 EOF
 }
 
+# Intentional exception to soma_python's -I (BUG-044): this probe must answer
+# "would `python3 -m soma_mcp` started in <workspace> find soma_mcp?", so it
+# deliberately honours PYTHONPATH, user site-packages and the workspace itself,
+# and may import a workspace-local soma_mcp. It calls the resolved interpreter
+# directly (no -I) but drops the implicit CWD entry and appends the workspace
+# LAST, so stdlib names (json.py, os.py, ...) in the workspace cannot shadow
+# the modules soma_mcp imports. Same boolean as the old `cd ws && import`.
+_soma_mcp_importable_from() {
+  resolve_python || return 1
+  "${SOMA_PYTHON_CMD[@]}" -c '
+import sys
+if sys.path and sys.path[0] == "":
+    del sys.path[0]
+sys.path.append(sys.argv[1])
+import soma_mcp
+' "$1" </dev/null >/dev/null 2>&1
+}
+
 # Merge only mcpServers.soma and preserve every unrelated key/server. The
 # governed workspace is both the server cwd and SOMA_WORKSPACE. A normal
 # installed package is preferred; source-checkout installs add PYTHONPATH only
@@ -192,7 +211,7 @@ merge_mcp_config() {
     log_error "Python 3 is required to safely merge MCP JSON configuration."
     return 1
   fi
-  if ! (cd "$workspace" && soma_python -c 'import soma_mcp' >/dev/null 2>&1); then
+  if ! _soma_mcp_importable_from "$workspace"; then
     source_fallback="$REPO_DIR"
   fi
   SOMA_MCP_FILE="$config_file" SOMA_WORKSPACE="$workspace" \

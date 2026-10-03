@@ -176,12 +176,21 @@ _python_missing_error() {
 }
 
 # soma_python <args...> — run the resolved interpreter, or fail loudly (127).
+# Inline code (`-c CODE` / `- <<heredoc`) gets -I (BUG-044): for those Python
+# puts the CWD at sys.path[0], and hooks run with CWD = the user's project
+# (uninstall from anywhere), so a json.py there executed inside every snippet.
+# -I also ignores PYTHON* env vars and user site-packages; snippets needing
+# repo modules add the path explicitly (sys.path.insert). Script invocations
+# (`soma_python path/x.py`) are unchanged: sys.path[0] is the script's dir.
 soma_python() {
   if ! resolve_python; then
     _python_missing_error
     return 127
   fi
-  "${SOMA_PYTHON_CMD[@]}" "$@"
+  case "${1:-}" in
+    -c|-) "${SOMA_PYTHON_CMD[@]}" -I "$@" ;;
+    *) "${SOMA_PYTHON_CMD[@]}" "$@" ;;
+  esac
 }
 
 resolve_python || true
@@ -444,11 +453,18 @@ install_hooks() {
   # result is known-good JSON: truncating hooks.json first left an empty or
   # missing file (and no safety gate) whenever rendering failed. The template
   # is UTF-8 regardless of the locale encoding. Mode "x" refuses to follow a
-  # pre-planted file or symlink at the temp path.
+  # pre-planted file or symlink at the temp path. An existing hooks.json keeps
+  # its mode (as uninstall.sh's MCP rewrite does).
+  # The render+swap runs in a subshell with its own traps so INT/TERM/EXIT
+  # remove the temp file without replacing a trap of the sourcing caller.
   local tmp="$target_dir/.hooks.json.$$.tmp"
   local rc=0
-  soma_python -c "
-import json, sys
+  (
+    trap '[ -z "$tmp" ] || rm -f -- "$tmp"' EXIT
+    trap 'exit 130' INT
+    trap 'exit 143' TERM
+    soma_python -c "
+import json, os, stat, sys
 with open(sys.argv[1], encoding='utf-8') as fh:
     rendered = fh.read().replace('{{SCRIPTS_DIR}}', sys.argv[2])
 try:
@@ -458,21 +474,25 @@ except ValueError as exc:
     sys.exit(3)
 with open(sys.argv[3], 'x', encoding='utf-8', newline='') as fh:
     fh.write(rendered)
-" "$template" "$scripts_dir" "$tmp" || rc=$?
+try:
+    os.chmod(sys.argv[3], stat.S_IMODE(os.stat(sys.argv[4]).st_mode))
+except FileNotFoundError:
+    pass
+" "$template" "$scripts_dir" "$tmp" "$target" || exit $?
+    mv -f -- "$tmp" "$target" || exit 4
+    tmp=""
+  ) || rc=$?
 
-  if [ "$rc" -ne 0 ]; then
-    rm -f -- "$tmp"
+  if [ "$rc" -eq 4 ]; then
+    log_error "Could not move rendered hooks.json into place at $target"
+    return 1
+  elif [ "$rc" -ne 0 ]; then
     if [ "$rc" -eq 3 ]; then
       log_error "hooks.json rendering produced invalid JSON"
     else
       log_error "hooks.json rendering failed (exit $rc)"
     fi
     log_error "hooks.json not installed; any existing $(basename "$target_dir")/hooks.json was left unchanged"
-    return 1
-  fi
-  if ! mv -f -- "$tmp" "$target"; then
-    rm -f -- "$tmp"
-    log_error "Could not move rendered hooks.json into place at $target"
     return 1
   fi
   log_info "hooks.json installed to $(basename "$target_dir")/"

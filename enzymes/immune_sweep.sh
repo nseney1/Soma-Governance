@@ -197,7 +197,11 @@ echo ""
 echo "📋 Check 4: Checking active sessions (modified in last 2 hours)..."
 
 active_report=""
-for transcript in $(find "$BRAIN_DIR" -name "transcript.jsonl" -mmin -120 2>/dev/null); do
+# NUL-delimited, read on fd 3 via process substitution: `for t in $(find ...)`
+# split paths on spaces, a `find | while` pipeline would lose active_flagged /
+# active_report in a subshell, and fd 3 keeps the list away from the loop
+# body's stdin. (bash 3.2 compatible.)
+while IFS= read -r -d '' transcript <&3; do
   step_count="$(wc -l < "$transcript" 2>/dev/null || echo 0)"
   if [ "$step_count" -gt 50 ]; then
     rel="${transcript#"$BRAIN_DIR"/}"
@@ -219,7 +223,7 @@ for transcript in $(find "$BRAIN_DIR" -name "transcript.jsonl" -mmin -120 2>/dev
       echo "  ✅ $short_id: ${step_count} steps, ~${waste_pct}% waste"
     fi
   fi
-done
+done 3< <(find "$BRAIN_DIR" -name "transcript.jsonl" -mmin -120 -print0 2>/dev/null)
 
 [ "$active_flagged" -eq 0 ] && echo "  All active sessions clean."
 echo ""

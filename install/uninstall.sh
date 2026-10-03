@@ -71,9 +71,23 @@ export SOMA_CYGPATH
 MANIFEST_PATH="$RESOLVED_HOME/.soma/manifest.json"
 MANIFEST_IS_LOCAL=false
 if [ -f "$WORK_DIR/.soma/manifest.json" ]; then
+  # A project-level .soma is repository content, i.e. attacker-controllable:
+  # as a symlink it would point the manifest (and its removal) outside the
+  # project. Refuse it. A symlinked ~/.soma stays allowed: the home directory
+  # is user-controlled (dotfile managers link it).
+  if [ -L "$WORK_DIR/.soma" ]; then
+    log_error "Refusing to use $WORK_DIR/.soma/manifest.json: $WORK_DIR/.soma is a symlink."
+    log_error "A project-level .soma must be a real directory. Nothing was removed."
+    exit 1
+  fi
   MANIFEST_PATH="$WORK_DIR/.soma/manifest.json"
   MANIFEST_IS_LOCAL=true
 fi
+# Root the manifest removal is confined to at the sink: the whole project for
+# a local manifest (so a .soma swapped for a symlink later is caught), its own
+# directory for ~/.soma (which may legitimately be a symlink).
+MANIFEST_SINK_ROOT="$(dirname "$MANIFEST_PATH")"
+[ "$MANIFEST_IS_LOCAL" = "false" ] || MANIFEST_SINK_ROOT="$WORK_DIR"
 
 # ── Path Confinement ──────────────────────────────────────────────
 # Allowed roots mirror where install.sh writes:
@@ -462,6 +476,75 @@ if not isinstance(servers, dict) or "soma" not in servers:
 PY
 }
 
+# claude_settings_py <check|clean> <settings.json> (BUG-045)
+#   check: exit 0 iff the file holds a hooks.soma entry.
+#   clean: drop hooks.soma; write an exclusive mkstemp temp in the same
+#          directory, give it the original mode, os.replace on success and
+#          unlink it on failure. Refuses (exit 4) a symlinked file.
+claude_settings_py() {
+  SOMA_SETTINGS_FILE="$2" soma_python - "$1" <<'PY'
+import json
+import os
+import stat
+import sys
+import tempfile
+
+path = os.environ["SOMA_SETTINGS_FILE"]
+st = os.lstat(path)
+if stat.S_ISLNK(st.st_mode) or not stat.S_ISREG(st.st_mode):
+    sys.exit(4)
+with open(path, "r", encoding="utf-8") as handle:
+    data = json.load(handle)
+hooks = data.get("hooks") if isinstance(data, dict) else None
+if not isinstance(hooks, dict) or "soma" not in hooks:
+    sys.exit(1)
+if sys.argv[1] == "check":
+    sys.exit(0)
+del hooks["soma"]
+fd, temp_path = tempfile.mkstemp(prefix=".settings.json.", suffix=".tmp",
+                                 dir=os.path.dirname(path) or ".")
+try:
+    with os.fdopen(fd, "w", encoding="utf-8") as handle:
+        json.dump(data, handle, indent=2)
+        handle.write("\n")
+    os.chmod(temp_path, stat.S_IMODE(st.st_mode))
+    os.replace(temp_path, path)
+except Exception:
+    try:
+        os.unlink(temp_path)
+    except FileNotFoundError:
+        pass
+    raise
+PY
+}
+
+# Queue a Claude settings.json for hooks.soma removal, or warn and skip it.
+# Symlinks (the file or its .claude parent) are refused outright: rewriting
+# through them edits a file outside the allowed roots.
+CLAUDE_SETTINGS_TO_CLEAN=()
+queue_claude_settings() {
+  local path="$1" queued
+  [ -e "$path" ] || [ -L "$path" ] || return 0
+  for queued in ${CLAUDE_SETTINGS_TO_CLEAN[@]+"${CLAUDE_SETTINGS_TO_CLEAN[@]}"}; do
+    [ "$queued" != "$path" ] || return 0
+  done
+  if [ -L "$path" ] || [ -L "$(dirname "$path")" ]; then
+    log_warn "Not modifying $path: it or its .claude directory is a symlink. Remove hooks.soma by hand."
+    return 0
+  fi
+  [ -f "$path" ] || return 0
+  if ! resolve_python; then
+    log_warn "Not inspecting $path: no working Python 3. Remove hooks.soma by hand."
+    return 0
+  fi
+  claude_settings_py check "$path" 2>/dev/null || return 0
+  if ! check_confined remove "$path" "${ALLOWED_ROOTS[@]}"; then
+    log_warn "Not modifying $path: $CONFINE_REASON"
+    return 0
+  fi
+  CLAUDE_SETTINGS_TO_CLEAN+=("$path")
+}
+
 # Reads one field from the manifest. The path is passed through the environment
 # rather than interpolated into the Python source: a quote in the path used to
 # be a silent SyntaxError (swallowed by 2>/dev/null), and a crafted directory
@@ -672,9 +755,12 @@ for mcp_config in ${MCP_CONFIGS_TO_CLEAN[@]+"${MCP_CONFIGS_TO_CLEAN[@]}"}; do
   fi
 done
 
+queue_claude_settings "$WORK_DIR/.claude/settings.json"
+queue_claude_settings "$RESOLVED_HOME/.claude/settings.json"
+
 # Confine the complete plan (manifest, fallback and --purge-data entries alike)
 # before anything is touched, so a refusal never leaves a half-removed install.
-# The manifest file itself is confined to its own directory at the sink.
+# The manifest file itself is confined to MANIFEST_SINK_ROOT at the sink.
 # Without a working Python 3 the plan cannot be confined (symlinked components
 # are invisible to a lexical check), so any non-empty plan is refused: fail
 # closed (BUG-043). The manifest branch already exited above in that case.
@@ -711,10 +797,11 @@ for d in ${DIRS_TO_REMOVE[@]+"${DIRS_TO_REMOVE[@]}"}; do echo "  - [DIR]  $d"; d
 for m in ${MODIFY_FILES[@]+"${MODIFY_FILES[@]}"}; do echo "  - [MOD]  $m (remove soma sections, keep the rest)"; done
 for mcp_config in ${MCP_CONFIGS_TO_CLEAN[@]+"${MCP_CONFIGS_TO_CLEAN[@]}"}; do echo "  - [MCP]  $mcp_config (remove mcpServers.soma, keep the rest)"; done
 for c in ${CONFIG_TO_REMOVE[@]+"${CONFIG_TO_REMOVE[@]}"}; do echo "  - [USER CONFIG] $c (pass --keep-config to keep it)"; done
+for s in ${CLAUDE_SETTINGS_TO_CLEAN[@]+"${CLAUDE_SETTINGS_TO_CLEAN[@]}"}; do echo "  - [MOD]  $s (remove hooks.soma, keep the rest)"; done
 
 MANIFEST_COUNT=0
 [ "$MANIFEST_EXISTS" != "true" ] || MANIFEST_COUNT=1
-PLAN_COUNT=$(( MANIFEST_COUNT + ${#FILES_TO_REMOVE[@]} + ${#DIRS_TO_REMOVE[@]} + ${#MODIFY_FILES[@]} + ${#MCP_CONFIGS_TO_CLEAN[@]} + ${#CONFIG_TO_REMOVE[@]} ))
+PLAN_COUNT=$(( MANIFEST_COUNT + ${#FILES_TO_REMOVE[@]} + ${#DIRS_TO_REMOVE[@]} + ${#MODIFY_FILES[@]} + ${#MCP_CONFIGS_TO_CLEAN[@]} + ${#CONFIG_TO_REMOVE[@]} + ${#CLAUDE_SETTINGS_TO_CLEAN[@]} ))
 if [ "$PLAN_COUNT" -eq 0 ]; then
   echo "Nothing to remove."
   exit 0
@@ -791,10 +878,9 @@ fi
 # writes a fresh .bak containing Soma content, and the parent of a removed file
 # may disappear.
 for f in ${FILES_TO_REMOVE[@]+"${FILES_TO_REMOVE[@]}"}; do
-  # The manifest itself is script-derived; confine it to its own directory so
-  # a symlinked ~/.soma does not block removing it.
+  # The manifest itself is script-derived; see MANIFEST_SINK_ROOT.
   if [ "$f" = "$MANIFEST_PATH" ]; then
-    guard_sink remove "$f" "$(dirname "$MANIFEST_PATH")"
+    guard_sink remove "$f" "$MANIFEST_SINK_ROOT"
   else
     guard_sink remove "$f"
   fi
@@ -847,27 +933,25 @@ for c in ${CONFIG_TO_REMOVE[@]+"${CONFIG_TO_REMOVE[@]}"}; do
   fi
 done
 
-# Clean soma hooks from claude settings.json, but only when one is actually
-# present. The previous version rewrote the user's settings.json through jq
-# unconditionally and printed "Cleaned ..." even when nothing matched — and on a
-# jq failure it left a stray .tmp behind while still claiming success.
-for settings_file in "$(pwd)/.claude/settings.json" "$RESOLVED_HOME/.claude/settings.json"; do
-  if [ -f "$settings_file" ] && command -v jq >/dev/null 2>&1; then
-    if jq -e '.hooks.soma? // empty' "$settings_file" >/dev/null 2>&1; then
-      if jq 'del(.hooks.soma)' "$settings_file" > "$settings_file.tmp" 2>/dev/null; then
-        mv "$settings_file.tmp" "$settings_file"
-        echo "Cleaned soma hooks from $settings_file"
-      else
-        rm -f "$settings_file.tmp"
-        log_warn "Could not rewrite $settings_file — left unchanged."
-      fi
-    fi
+# Clean soma hooks from claude settings.json (queued, confined and previewed
+# above; BUG-045). Re-checked at the sink: the symlink test and guard_sink
+# catch a component swapped since planning.
+for settings_file in ${CLAUDE_SETTINGS_TO_CLEAN[@]+"${CLAUDE_SETTINGS_TO_CLEAN[@]}"}; do
+  if [ -L "$settings_file" ] || [ -L "$(dirname "$settings_file")" ]; then
+    log_warn "Not modifying $settings_file: it or its .claude directory became a symlink."
+    continue
+  fi
+  guard_sink remove "$settings_file" "${ALLOWED_ROOTS[@]}"
+  if claude_settings_py clean "$settings_file"; then
+    echo "Cleaned soma hooks from $settings_file"
+  else
+    log_warn "Could not rewrite $settings_file — left unchanged."
   fi
 done
 
 # If manifest file exists and wasn't caught by the array (e.g. empty)
 if [ -f "$MANIFEST_PATH" ]; then
-  guard_sink remove "$MANIFEST_PATH" "$(dirname "$MANIFEST_PATH")"
+  guard_sink remove "$MANIFEST_PATH" "$MANIFEST_SINK_ROOT"
   rm -f "$MANIFEST_PATH"
 fi
 
