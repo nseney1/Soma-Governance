@@ -53,7 +53,7 @@ case "$COMMAND" in
     mkdir -p "$TEAM_REPO/cells/promoted"
     mkdir -p "$TEAM_REPO/snapshots/$TEAM_MEMBER_ID"
     
-    python3 -c "
+    soma_python -c "
 import json
 import sys
 import shutil
@@ -70,7 +70,7 @@ promoted_dir = os.path.join(team_repo, 'cells', 'promoted')
 
 # 1. Cells
 try:
-    res = subprocess.run(['python3', os.path.join(repo_dir, 'enzymes', 'cell_fitness.py'), '--json'], capture_output=True, text=True)
+    res = subprocess.run([sys.executable, os.path.join(repo_dir, 'enzymes', 'cell_fitness.py'), '--json'], capture_output=True, text=True)
     if res.returncode == 0:
         data = json.loads(res.stdout)
         for item in data:
@@ -135,7 +135,7 @@ except Exception as e:
     fi
     
     # Copy from TEAM_REPO and ORG_REPO to local
-    python3 -c "
+    soma_python -c "
 import os
 import sys
 import shutil
@@ -182,7 +182,7 @@ if org_repo:
     ;;
     
   status)
-    python3 -c "
+    soma_python -c "
 import os
 import sys
 import json
@@ -214,7 +214,7 @@ if org_repo:
     print(f'Org cells ({org_repo}): {org_cells}')
 
 try:
-    res = subprocess.run(['python3', os.path.join(repo_dir, 'enzymes', 'cell_fitness.py'), '--json'], capture_output=True, text=True)
+    res = subprocess.run([sys.executable, os.path.join(repo_dir, 'enzymes', 'cell_fitness.py'), '--json'], capture_output=True, text=True)
     if res.returncode == 0:
         data = json.loads(res.stdout)
         eligible = [item['cell'] for item in data if item.get('score') is not None and item.get('score') > 0.85]

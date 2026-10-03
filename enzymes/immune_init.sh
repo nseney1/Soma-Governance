@@ -11,8 +11,11 @@ set -euo pipefail
 #   ⚡ Preflight → coding project detected, prompt agent to run session-preflight
 #   {} → silent if nothing new
 
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$DIR/common.sh"  # before the first Python call: soma_python (BUG-037)
+
 INPUT=$(cat)
-INVOCATION_NUM=$(echo "$INPUT" | python3 -c "import sys,json; print(json.load(sys.stdin).get('invocationNum', 0))" 2>/dev/null || echo "0")
+INVOCATION_NUM=$(echo "$INPUT" | soma_python -c "import sys,json; print(json.load(sys.stdin).get('invocationNum', 0))" 2>/dev/null || echo "0")
 
 # Run on first invocation and every 100th invocation
 if [ "$INVOCATION_NUM" != "1" ] && [ "$(( INVOCATION_NUM % 100 ))" != "0" ]; then
@@ -20,8 +23,6 @@ if [ "$INVOCATION_NUM" != "1" ] && [ "$(( INVOCATION_NUM % 100 ))" != "0" ]; the
     exit 0
 fi
 
-DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$DIR/common.sh"
 RESOLVED_HOME=$(resolve_home)
 
 SOMA_CONF="${SOMA_CONF:-$RESOLVED_HOME/.gemini/antigravity/scratch/soma/soma.conf}"
@@ -49,7 +50,7 @@ fi
 # ── Project Detection (Invocation 1 only, outside flock) ─────────────────
 PREFLIGHT_STEPS="[]"
 if [ "$INVOCATION_NUM" = "1" ]; then
-    PREFLIGHT_STEPS=$(echo "$INPUT" | python3 -c "
+    PREFLIGHT_STEPS=$(echo "$INPUT" | soma_python -c "
 import json, os, sys
 
 try:
@@ -198,7 +199,7 @@ else
 fi
 
 # ── Merge all steps into single response ─────────────────────────────────
-MERGED=$(python3 -c "
+MERGED=$(soma_python -c "
 import json, sys
 preflight = json.loads(sys.argv[1])
 gov = json.loads(sys.argv[2])
@@ -214,7 +215,7 @@ echo "$MERGED"
 # === Homeostatic Governance ===
 # Read recent waste rate and adjust review intensity suggestion
 if [ -d "$RESOLVED_HOME/.gemini/antigravity/scratch/ai-conversation-logs/governance" ]; then
-  RECENT_WASTE=$(python3 -c "
+  RECENT_WASTE=$(soma_python -c "
 import os, json, glob
 gov_dir = os.path.expanduser('$RESOLVED_HOME/.gemini/antigravity/scratch/ai-conversation-logs/governance')
 sweeps = sorted(glob.glob(os.path.join(gov_dir, '*.json')))[-5:]  # last 5 sessions
@@ -258,7 +259,7 @@ fi
 # === Escalation Sentinel ===
 if [ -f "$SCRIPT_DIR/escalation_sentinel.sh" ]; then
   SENTINEL_RESULT=$(bash "$SCRIPT_DIR/escalation_sentinel.sh" 2>/dev/null || echo '')
-  RECOMMENDED_MODE=$(echo "$SENTINEL_RESULT" | python3 -c "
+  RECOMMENDED_MODE=$(echo "$SENTINEL_RESULT" | soma_python -c "
 import sys
 result = {}
 for line in sys.stdin:

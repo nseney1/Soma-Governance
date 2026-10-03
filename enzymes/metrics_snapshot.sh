@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 
-# Source common.sh
-source "$(dirname "$0")/common.sh" 2>/dev/null || true
+# Source common.sh (provides soma_python, BUG-037)
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
 
 # Forward arguments to python logic
 SCRIPT_DIR="$(dirname "$(realpath "$0")")"
 export SCRIPT_DIR
-python3 - "$@" << 'PYEOF'
+soma_python - "$@" << 'PYEOF'
 import sys
 import os
 
@@ -71,7 +71,7 @@ def main():
 
     # Call token_census.py
     census_script = os.path.join(workspace, "enzymes", "token_census.py")
-    result = subprocess.run(["python3", census_script, "--json"], capture_output=True, text=True)
+    result = subprocess.run([sys.executable, census_script, "--json"], capture_output=True, text=True)
     if result.returncode != 0:
         print("Error running token_census.py", file=sys.stderr)
         sys.exit(1)

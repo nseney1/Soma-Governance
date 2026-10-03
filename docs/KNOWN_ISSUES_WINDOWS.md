@@ -13,14 +13,21 @@ Open Windows issues as of v0.89.0 were observed on Windows 11 with Windows Power
 | MCP cell reads and receipts (`soma_scan`, `soma_list_cells`, `soma_request_receipt`) | v0.89.0 fails once any cell has been edited; fixed after v0.89.0 | BUG-035 |
 | `install.ps1` parsing under Windows PowerShell 5.1 | Parse failure fixed in v0.89.0, but generated rules can contain mojibake and hooks are skipped | BUG-011, BUG-014, BUG-032 |
 | `install.ps1` under PowerShell 7 (`pwsh`) | Not fully verified; avoids the known PS 5.1 decoding issue, but the PowerShell installer still skips hooks | BUG-014, BUG-032 |
-| Hooks under Git Bash with a python.org install | Open: `python3` may resolve to the Windows Store stub | BUG-037 |
+| Hooks under Git Bash with a python.org install | v0.89.0 can pick the Windows Store `python3` stub and install no hooks; fixed after v0.89.0 | BUG-037 |
 | `uninstall.sh` under Git Bash | v0.89.0 rejects every path as "not an absolute path" and removes nothing; fixed after v0.89.0 | BUG-036 |
 | Test suite on Windows | v0.89.0 can write to the real home directory; fixed after v0.89.0 | BUG-010 |
 | `soma status` on a cp1252 console | v0.89.0 can crash unless `PYTHONIOENCODING=utf-8`; fixed after v0.89.0 | BUG-012 |
 | `soma_list_cells` / `Governance.list_cells` | Fixed in v0.89.0 (explicit UTF-8 inventory) | BUG-012 |
-| Windows-only tests | Fixed after v0.89.0; remaining Windows failures are BUG-038 | BUG-013 |
+| Enzyme scripts on a cp1252 stdout | v0.89.0 can crash with `UnicodeEncodeError`; fixed after v0.89.0 | BUG-038 |
+| Windows-only tests | Fixed after v0.89.0; the remaining BUG-038 failures are fixed after v0.89.0 but not yet re-run on Windows | BUG-013 |
 
 ## Fixed after v0.89.0 (unreleased)
+
+### BUG-038: Enzyme scripts crashed on a cp1252 stdout ([#65](https://github.com/nseney1/Soma-Governance/issues/65))
+On v0.89.0 about 20 standalone scripts under `enzymes/`, and `immune_system/verification/runner.py`, print non-ASCII characters from their entry points. With stdout on cp1252 (redirected or captured output) they exit 1 with `UnicodeEncodeError`; `tests/test_crossover_structured.py` fails on Windows for this reason. Each entry point now reconfigures stdout with `errors="replace"`, as BUG-012 did for `soma`. Workaround on v0.89.0: `$env:PYTHONIOENCODING = "utf-8"` (PowerShell) or `export PYTHONIOENCODING=utf-8` (Git Bash).
+
+### BUG-037: Git Bash `python3` could be the Windows Store stub ([#64](https://github.com/nseney1/Soma-Governance/issues/64))
+A python.org install may not provide `python3.exe`, so on v0.89.0 `python3` resolves to the App Installer stub: `command -v python3` succeeds but running it exits 49, so no hooks are installed and other shell-script Python calls fail. The installer, uninstaller and shell enzymes now use the first of `python3`, `python` and `py -3` that actually runs Python 3, and installing hooks without one is an error rather than a silent skip. Set `SOMA_PYTHON` to an interpreter path to override the search. Without any working interpreter, `uninstall.sh` now refuses any removal and exits with an error, with or without a manifest, because it cannot verify that removals stay inside the allowed roots (BUG-043). Workaround on v0.89.0: disable the `python3.exe` App execution alias and put a real `python3` on `PATH`.
 
 ### BUG-035: Cell inventory rejected edited cells ([#61](https://github.com/nseney1/Soma-Governance/issues/61))
 On v0.89.0, `soma_scan` and `soma_list_cells` fail with `file changed before it was opened`, and `soma_request_receipt` returns `Internal error`, so no write or execute tool can run. Cause: `os.stat` and `os.fstat` report different `st_ctime` values on Windows. The inventory now leaves `st_ctime` out of its change check on Windows and reads cells in binary mode.
@@ -50,18 +57,10 @@ The PowerShell scripts now carry a UTF-8 BOM, and CI dry-runs the installer unde
 
 ## Open issues
 
-### BUG-038: Enzyme scripts crash on a cp1252 stdout ([#65](https://github.com/nseney1/Soma-Governance/issues/65))
-About 20 standalone scripts under `enzymes/` print non-ASCII characters. With stdout on cp1252 (redirected or captured output) they exit 1 with `UnicodeEncodeError`; `tests/test_crossover_structured.py` fails on Windows for this reason. **Workaround:** `$env:PYTHONIOENCODING = "utf-8"` (PowerShell) or `export PYTHONIOENCODING=utf-8` (Git Bash).
-
-### BUG-037: Git Bash `python3` may be the Windows Store stub ([#64](https://github.com/nseney1/Soma-Governance/issues/64))
-A python.org install may not provide `python3.exe`, so `python3` resolves to the App Installer stub. `command -v python3` succeeds but execution fails, preventing hook generation and other shell-script Python calls.
-
-**Workaround:** disable the `python3.exe` App execution alias and put a real `python3` on `PATH`, such as a shim that invokes `python.exe`.
-
 ### BUG-032: PowerShell installer does not install lifecycle hooks
 `install.ps1` skips hooks because they require Bash, so post-session fitness updates never run after a native PowerShell install.
 
-**Workaround:** install through Git Bash with `install/install.sh`, with a real `python3` on `PATH` (see BUG-037).
+**Workaround:** install through Git Bash with `install/install.sh`, with Python 3 installed (see BUG-037).
 
 ### BUG-014: PowerShell installer writes mojibake ([#59](https://github.com/nseney1/Soma-Governance/issues/59), split from [#48](https://github.com/nseney1/Soma-Governance/issues/48))
 Windows PowerShell 5.1 decodes UTF-8 rule files using its locale default when `Get-Content` has no explicit encoding, so generated rules can contain mojibake. The PowerShell installer also skips hooks.

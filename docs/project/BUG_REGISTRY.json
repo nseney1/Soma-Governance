@@ -652,38 +652,61 @@
     {
       "id": "BUG-037",
       "issue_url": "https://github.com/nseney1/Soma-Governance/issues/64",
-      "status": "open",
+      "status": "fixed",
       "title": "Git Bash: python3 can resolve to the Windows Store stub, so hooks and shell-script Python calls fail",
       "discovered_in": "v0.88.2",
+      "fixed_in": "Unreleased",
       "root_cause": "platform_compat",
       "severity": "moderate",
-      "description": "A python.org install provides python.exe but no python3.exe, so in Git Bash `python3` resolves to the App Installer stub. `command -v python3` succeeds, but running it exits 49 with no output. enzymes/common.sh install_hooks() therefore renders an empty hooks.json and skips hooks, and the other python3 calls in install/ and enzymes/*.sh fail the same way. Workaround: disable the python3 App execution alias and put a real python3 on PATH. Split out of BUG-010 when its home-isolation half was fixed. Suggested fix: resolve one working interpreter (python3, python, py -3), accepting a candidate only if it runs `-c 'import sys'`, and use it everywhere.",
+      "description": "A python.org install provides python.exe but no python3.exe, so in Git Bash `python3` resolves to the App Installer stub. `command -v python3` succeeds, but running it exits 49 with no output. enzymes/common.sh install_hooks() therefore renders an empty hooks.json and skips hooks, and the other python3 calls in install/ and enzymes/*.sh fail the same way. Workaround: disable the python3 App execution alias and put a real python3 on PATH. Split out of BUG-010 when its home-isolation half was fixed. Fixed: enzymes/common.sh resolve_python() picks the first of python3, python and `py -3` that runs Python 3 (SOMA_PYTHON overrides), once when common.sh is sourced, and soma_python runs it or fails with an error naming the candidates. install_hooks() now fails instead of skipping when there is no interpreter. Every python3 call in enzymes/*.sh, install/install.sh and install/uninstall.sh goes through soma_python; scripts that did not source common.sh now do (cell_create.sh and cell_transfer.sh sourced it only when run from the repository root, cell_signal.sh from a scripts/ path that does not exist), and Python subprocesses inside them use sys.executable. uninstall.sh stays fail-closed: the manifest branch still refuses without an interpreter (the manifestless branch now does too, BUG-043). The MCP server entry install.sh writes still names python3. Review follow-ups: the candidate probe runs with -I -S; install_hooks() reads the template and writes hooks.json as UTF-8, and renders to a temp file beside the target, replacing hooks.json only once the result parses as JSON (a failed render used to truncate or delete an existing hooks.json); cell_create.sh, cell_transfer.sh and cell_signal.sh locate common.sh through symlinks; cell_transfer.sh, which now always runs under common.sh's `set -u`, resolves its source project (SOMA_ROOT, or the nearest parent with .soma/cells/) instead of reading an unset $REPO_DIR, and logs transfers in that project rather than the current directory.",
       "affected_files": [
         "enzymes/common.sh",
         "install/install.sh",
-        "install/uninstall.sh"
+        "install/uninstall.sh",
+        "enzymes/cell_create.sh",
+        "enzymes/cell_selection.sh",
+        "enzymes/cell_signal.sh",
+        "enzymes/cell_transfer.sh",
+        "enzymes/immune_init.sh",
+        "enzymes/immune_sweep.sh",
+        "enzymes/liveness_sentinel.sh",
+        "enzymes/log_finding.sh",
+        "enzymes/metrics_snapshot.sh",
+        "enzymes/post_session_hook.sh",
+        "enzymes/safety_gate.sh",
+        "enzymes/session_close.sh",
+        "enzymes/team_sync.sh"
       ],
-      "pattern": "Interpreter presence checked with command -v instead of by running it"
+      "regression_test": "tests/test_python_resolution.py::test_install_hooks_renders_hooks_with_store_stub_first_on_path",
+      "pattern": "Interpreter presence checked with command -v instead of by running it",
+      "changelog_ref": "Unreleased"
     },
     {
       "id": "BUG-038",
       "issue_url": "https://github.com/nseney1/Soma-Governance/issues/65",
-      "status": "open",
+      "status": "fixed",
       "title": "Windows: enzyme scripts crash on a cp1252 stdout when printing non-ASCII",
       "discovered_in": "v0.89.0",
+      "fixed_in": "Unreleased",
       "root_cause": "platform_compat",
       "severity": "moderate",
-      "description": "Nineteen standalone enzyme scripts and immune_system/verification/runner.py print emoji, arrows or other non-ASCII characters from their __main__ entry points without reconfiguring stdout. With stdout on cp1252 (Windows, redirected or captured, including hook runs under Git Bash) they raise UnicodeEncodeError and exit 1. Seen on Windows in tests/test_crossover_structured.py: enzymes/cell_crossover.py fails at its 'Crossover: a x b -> c' line (U+2192). Same class as BUG-012, which fixed the `soma` CLI and verify_bug_registry.py only.",
+      "description": "Nineteen standalone enzyme scripts and immune_system/verification/runner.py print emoji, arrows or other non-ASCII characters from their __main__ entry points without reconfiguring stdout. With stdout on cp1252 (Windows, redirected or captured, including hook runs under Git Bash) they raise UnicodeEncodeError and exit 1. Seen on Windows in tests/test_crossover_structured.py: enzymes/cell_crossover.py fails at its 'Crossover: a x b -> c' line (U+2192). Same class as BUG-012, which fixed the `soma` CLI and verify_bug_registry.py only. Fixed: every entry point whose source has a non-ASCII string literal now starts its __main__ block with the BUG-012 guard, `if hasattr(sys.stdout, 'reconfigure'): sys.stdout.reconfigure(errors='replace')`. The regression test finds those entry points by parsing the sources and checking the decoded value of every non-docstring string constant, f-string parts included, so escapes such as `\\u2705` count. That covered cell_expiry.py, immune_entropy.py and ttc_verifier.py, and later cell_adversarial.py, cell_enforce.py, cell_fitness.py and ci_outcome_reporter.py, which print escaped symbols a token-based scan missed. Each entry point is run with PYTHONIOENCODING=cp1252.",
       "affected_files": [
+        "enzymes/cell_adversarial.py",
         "enzymes/cell_coverage.py",
         "enzymes/cell_create_nl.py",
         "enzymes/cell_crossover.py",
         "enzymes/cell_deps.py",
+        "enzymes/cell_enforce.py",
         "enzymes/cell_escaped_defects.py",
+        "enzymes/cell_expiry.py",
+        "enzymes/cell_fitness.py",
         "enzymes/cell_genesis_stochastic.py",
         "enzymes/cell_quorum.py",
+        "enzymes/ci_outcome_reporter.py",
         "enzymes/diagnose_hot_zones.py",
         "enzymes/hgt_ribosome.py",
+        "enzymes/immune_entropy.py",
         "enzymes/immune_grade.py",
         "enzymes/immune_replay.py",
         "enzymes/immune_trends.py",
@@ -693,10 +716,13 @@
         "enzymes/soma_coherence.py",
         "enzymes/soma_interoception.py",
         "enzymes/soma_sleep.py",
+        "enzymes/ttc_verifier.py",
         "enzymes/verify_readme_claims.py",
         "immune_system/verification/runner.py"
       ],
-      "pattern": "Relying on the platform default encoding instead of an explicit utf-8"
+      "regression_test": "tests/test_console_encoding.py::test_entry_point_survives_cp1252_stdout",
+      "pattern": "Relying on the platform default encoding instead of an explicit utf-8",
+      "changelog_ref": "Unreleased"
     },
     {
       "id": "BUG-039",
@@ -731,6 +757,38 @@
       ],
       "regression_test": "tests/test_telemetry.py::TestEvidenceLockIgnoredByGit::test_lock_file_is_ignored",
       "pattern": "Runtime lock file written inside the working tree without an ignore rule",
+      "changelog_ref": "Unreleased"
+    },
+    {
+      "id": "BUG-042",
+      "status": "fixed",
+      "title": "immune_sweep.sh aborts with 'RESOLVED_HOME: unbound variable' unless SOMA_DATA_DIR is exported",
+      "discovered_in": "v0.89.0",
+      "fixed_in": "Unreleased",
+      "root_cause": "path_error",
+      "severity": "low",
+      "description": "enzymes/immune_sweep.sh defaults SOMA_DATA_DIR to $RESOLVED_HOME/.gemini/antigravity, but nothing in the script set RESOLVED_HOME. It runs under `set -euo pipefail`, so with SOMA_DATA_DIR unset the sweep exited 1 at line 28 before doing any work. Predates the BUG-037 changes (introduced in c0994c3); found in the BUG-037 review. Fixed: RESOLVED_HOME is set from common.sh's resolve_home, which fails loudly when no home can be resolved. With the abort gone, a fresh home surfaced a second failure: the final sweep_log.jsonl append failed because the governance directory did not exist. The sweep now creates session_metrics/ (and its parent) first.",
+      "affected_files": [
+        "enzymes/immune_sweep.sh"
+      ],
+      "regression_test": "tests/test_v090_hardening.py::test_immune_sweep_runs_without_soma_data_dir",
+      "pattern": "Variable read under set -u that no code path assigns",
+      "changelog_ref": "Unreleased"
+    },
+    {
+      "id": "BUG-043",
+      "status": "fixed",
+      "title": "uninstall.sh without a working Python 3 fell back to a symlink-blind lexical confinement check",
+      "discovered_in": "v0.89.0",
+      "fixed_in": "Unreleased",
+      "root_cause": "silent_failure",
+      "severity": "moderate",
+      "description": "install/uninstall.sh check_confined() used _lexical_confined, a string-prefix test, whenever no working Python 3 was found, and the whole-plan confinement check before removal was skipped entirely. The manifest branch already refused without an interpreter, but the manifestless (pattern-based) branch went ahead: a path such as $HOME/.kiro/steering/x.md whose parent component is a symlink to a directory outside $HOME passes a lexical prefix test, so it would be removed through the link. This was fail-open relative to the Python check, which rejects symlinked components. Fixed: without a working interpreter check_confined() refuses every target, and a non-empty manifestless plan (including MCP configs that could not be inspected) is refused before anything is touched, with an error naming the fix (install Python 3 or set SOMA_PYTHON). _lexical_confined is removed. An empty plan still exits 0 with 'Nothing to remove.'.",
+      "affected_files": [
+        "install/uninstall.sh"
+      ],
+      "regression_test": "tests/test_v090_hardening.py::test_manifestless_uninstall_without_python_removes_nothing",
+      "pattern": "Security check degrades to a weaker fallback instead of failing closed",
       "changelog_ref": "Unreleased"
     }
   ]

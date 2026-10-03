@@ -2,10 +2,17 @@
 # cell_create.sh: Programmatic Cell Creation for Soma
 # Usage: bash enzymes/cell_create.sh --type <type> --hypothesis <hypothesis> --prediction <prediction> --falsification <falsification> [options]
 
-# Source common.sh if it exists (for compatibility with existing structure)
-if [[ -f "enzymes/common.sh" ]]; then
-  source "enzymes/common.sh"
-fi
+# Symlink-safe resolution: a dirname of a symlinked invocation would look for
+# common.sh and cell_create_nl.py next to the link instead of in enzymes/.
+PRG="${BASH_SOURCE[0]}"
+while [ -h "$PRG" ]; do
+  DIR="$(cd -P "$(dirname "$PRG")" && pwd)"
+  PRG="$(readlink "$PRG")"
+  [[ $PRG != /* ]] && PRG="$DIR/$PRG"
+done
+SCRIPT_DIR="$(cd -P "$(dirname "$PRG")" && pwd)"
+# Source common.sh from this script's directory (provides soma_python, BUG-037)
+source "$SCRIPT_DIR/common.sh"
 
 # Default values
 # Walk up from CWD to find project root with .soma/cells/
@@ -116,12 +123,11 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 if [ -n "$DESCRIPTION" ]; then
     EXTRA_ARGS=""
     [ -n "$ID_OVERRIDE" ] && EXTRA_ARGS="$EXTRA_ARGS --id $ID_OVERRIDE"
     [ -n "$TYPE" ] && EXTRA_ARGS="$EXTRA_ARGS --type $TYPE"
-    python3 "$SCRIPT_DIR/cell_create_nl.py" "$DESCRIPTION" $EXTRA_ARGS
+    soma_python "$SCRIPT_DIR/cell_create_nl.py" "$DESCRIPTION" $EXTRA_ARGS
     exit $?
 fi
 

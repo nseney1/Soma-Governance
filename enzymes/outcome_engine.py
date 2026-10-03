@@ -1003,4 +1003,8 @@ def main():
 
 
 if __name__ == '__main__':
+    # Output uses non-ASCII symbols; on a cp1252 stdout printing them
+    # raised UnicodeEncodeError and the script exited 1 (BUG-038).
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(errors="replace")
     main()

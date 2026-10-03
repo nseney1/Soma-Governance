@@ -9,15 +9,17 @@
 #   Detects stalled or deadlocked subagents that fail to report back within expected timeframes.
 #   Outputs a status report for each agent (HEALTHY / WARNING / STALLED).
 
-if [[ "$1" == "--help" || -z "$1" ]]; then
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"  # soma_python (BUG-037); enables set -euo pipefail
+
+if [[ "${1:-}" == "--help" || -z "${1:-}" ]]; then
   echo "Usage: $0 --check '{\"agents\": [...]}'"
   echo "Example:"
   echo "  $0 --check '{\"agents\": [{\"name\": \"Canopy Scout\", \"dispatched\": \"2026-09-27T20:00:00Z\", \"timeout_seconds\": 300}]}'"
   exit 0
 fi
 
-if [[ "$1" == "--check" && -n "$2" ]]; then
-  python3 -c "
+if [[ "$1" == "--check" && -n "${2:-}" ]]; then
+  soma_python -c "
 import json
 import sys
 from datetime import datetime, timezone

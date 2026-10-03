@@ -27,12 +27,15 @@ else
     _d="$(dirname "$_d")"
   done
 fi
-SCRIPT_DIR="$REPO_DIR/scripts"
-
-# Source common utilities if available
-if [ -f "$SCRIPT_DIR/common.sh" ]; then
-  source "$SCRIPT_DIR/common.sh"
-fi
+# Source common utilities from this script's directory (soma_python, BUG-037).
+# Follow symlinks first: a dirname of the link would miss enzymes/common.sh.
+PRG="${BASH_SOURCE[0]}"
+while [ -h "$PRG" ]; do
+  DIR="$(cd -P "$(dirname "$PRG")" && pwd)"
+  PRG="$(readlink "$PRG")"
+  [[ $PRG != /* ]] && PRG="$DIR/$PRG"
+done
+source "$(cd -P "$(dirname "$PRG")" && pwd)/common.sh"
 
 if [ "$#" -lt 2 ]; then
   echo "Usage: $0 <cell_id> <tp|fp|fn> [--metric key=value] [--stress]"
@@ -204,4 +207,4 @@ if metric_key:
 EOF
 )
 
-python3 -c "$PYTHON_HELPER" "$TARGET_CELL" "$OUTCOME" "$METRIC_KEY" "$METRIC_VAL" "$METRICS_FILE" "$STRESS"
+soma_python -c "$PYTHON_HELPER" "$TARGET_CELL" "$OUTCOME" "$METRIC_KEY" "$METRIC_VAL" "$METRICS_FILE" "$STRESS"

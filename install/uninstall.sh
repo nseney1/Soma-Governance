@@ -283,28 +283,18 @@ sys.exit(2)
 
 join_lines() { local IFS=$'\n'; printf '%s' "$*"; }
 
-# Lexical-only fallback for the no-manifest branch on hosts without python3.
-# Those paths come from fixed globs, never from manifest data.
-_lexical_confined() {
-  local target="$1" root; shift
-  case "$target" in /*) ;; *) return 1 ;; esac
-  case "/$target/" in */../*|*/./*) return 1 ;; esac
-  for root in "$@"; do
-    if [ -z "$root" ] || [ "$root" = "/" ] || [ "$target" = "$root" ]; then continue; fi
-    case "$target" in "$root"/*) return 0 ;; esac
-  done
-  return 1
-}
-
 # check_confined <remove|source> <target> <root>...
+# Fails closed without a working Python 3 (BUG-043). The old lexical prefix
+# fallback could not see symlinked components, so a manifestless uninstall on
+# such a host followed `$HOME/link/...` out of the allowed roots.
 check_confined() {
   local kind="$1" target="$2"; shift 2
-  if command -v python3 >/dev/null 2>&1; then
-    CONFINE_REASON="$(python3 -I -S -c "$PATH_CHECK_PY" path "$kind" "$target" "$@" 2>&1)" && return 0
+  if ! resolve_python; then
+    CONFINE_REASON="no working Python 3 to verify confinement (install Python 3 or set SOMA_PYTHON)"
     return 1
   fi
-  CONFINE_REASON="outside the allowed roots (lexical check; python3 unavailable)"
-  _lexical_confined "$target" "$@"
+  CONFINE_REASON="$(soma_python -I -S -c "$PATH_CHECK_PY" path "$kind" "$target" "$@" 2>&1)" && return 0
+  return 1
 }
 
 # Re-validate at the sink, immediately before rm/sed. Validation and removal
@@ -369,7 +359,7 @@ restore_file() {
 remove_soma_mcp_server() {
   local config_file="$1"
   guard_sink remove "$config_file"
-  SOMA_MCP_FILE="$config_file" python3 - <<'PY'
+  SOMA_MCP_FILE="$config_file" soma_python - <<'PY'
 import json
 import os
 import stat
@@ -409,6 +399,7 @@ FILES_TO_REMOVE=()
 DIRS_TO_REMOVE=()
 MODIFY_FILES=()
 MCP_CONFIGS_TO_CLEAN=()
+UNVERIFIED_MCP=()
 BACKUP_DIR=""
 
 add_known_rule_files() {
@@ -437,8 +428,12 @@ add_known_skill_dirs() {
 queue_mcp_config() {
   local path="$1"
   [ -f "$path" ] || return 0
-  command -v python3 >/dev/null 2>&1 || return 0
-  if SOMA_MCP_FILE="$path" python3 - <<'PY'
+  if ! resolve_python; then
+    # Cannot tell whether it holds an owned soma server; refused below.
+    UNVERIFIED_MCP+=("$path")
+    return 0
+  fi
+  if SOMA_MCP_FILE="$path" soma_python - <<'PY'
 import json
 import os
 with open(os.environ["SOMA_MCP_FILE"], "r", encoding="utf-8") as handle:
@@ -454,7 +449,7 @@ PY
 
 validate_soma_mcp_config() {
   local path="$1"
-  SOMA_MCP_FILE="$path" python3 - <<'PY'
+  SOMA_MCP_FILE="$path" soma_python - <<'PY'
 import json
 import os
 with open(os.environ["SOMA_MCP_FILE"], "r", encoding="utf-8") as handle:
@@ -472,7 +467,7 @@ PY
 # be a silent SyntaxError (swallowed by 2>/dev/null), and a crafted directory
 # name was code execution.
 read_manifest_field() {
-  SOMA_MANIFEST="$MANIFEST_PATH" python3 -c '
+  SOMA_MANIFEST="$MANIFEST_PATH" soma_python -c '
 import json, os, sys
 # Bash reads one path per line as UTF-8. Native Windows Python would write
 # CRLF (leaving a CR on every entry but the last) in the console code page.
@@ -495,10 +490,11 @@ else:
 if [ "$MANIFEST_EXISTS" = "true" ]; then
   echo "Found manifest at $MANIFEST_PATH. Reading paths..."
 
-  if ! command -v python3 >/dev/null 2>&1; then
-    log_error "A manifest exists at $MANIFEST_PATH but python3 is not available to read it."
+  if ! resolve_python; then
+    _python_missing_error
+    log_error "A manifest exists at $MANIFEST_PATH but no working Python 3 is available to read it."
     log_error "Refusing to continue: guessing paths risks an incomplete uninstall."
-    log_error "Install python3, or delete the manifest to use pattern-based removal."
+    log_error "Install Python 3, or delete the manifest to use pattern-based removal."
     exit 1
   fi
 
@@ -532,7 +528,7 @@ if [ "$MANIFEST_EXISTS" = "true" ]; then
   validate_out="$(SOMA_MANIFEST="$MANIFEST_PATH" \
     SOMA_ROOTS="$(join_lines "${ALLOWED_ROOTS[@]}")" \
     SOMA_BACKUP_ROOTS="$(join_lines "${BACKUP_ROOTS[@]}")" \
-    python3 -I -S -c "$PATH_CHECK_PY" manifest 2>&1)" || validate_rc=$?
+    soma_python -I -S -c "$PATH_CHECK_PY" manifest 2>&1)" || validate_rc=$?
   if [ "$validate_rc" -ne 0 ]; then
     log_error "Manifest at $MANIFEST_PATH contains unsafe entries:"
     printf '%s\n' "$validate_out" >&2
@@ -679,14 +675,25 @@ done
 # Confine the complete plan (manifest, fallback and --purge-data entries alike)
 # before anything is touched, so a refusal never leaves a half-removed install.
 # The manifest file itself is confined to its own directory at the sink.
-if command -v python3 >/dev/null 2>&1; then
+# Without a working Python 3 the plan cannot be confined (symlinked components
+# are invisible to a lexical check), so any non-empty plan is refused: fail
+# closed (BUG-043). The manifest branch already exited above in that case.
+if ! resolve_python; then
+  UNCONFINED_COUNT=$(( ${#FILES_TO_REMOVE[@]} + ${#DIRS_TO_REMOVE[@]} + ${#MODIFY_FILES[@]} + ${#MCP_CONFIGS_TO_CLEAN[@]} + ${#CONFIG_TO_REMOVE[@]} + ${#UNVERIFIED_MCP[@]} ))
+  if [ "$UNCONFINED_COUNT" -gt 0 ]; then
+    _python_missing_error
+    log_error "Cannot verify that the $UNCONFINED_COUNT planned removal(s) stay inside the allowed roots without Python 3."
+    log_error "Refusing to continue. Nothing was removed. Install Python 3 or set SOMA_PYTHON, then re-run."
+    exit 1
+  fi
+else
   plan_rc=0
   plan_out="$(
     for p in ${FILES_TO_REMOVE[@]+"${FILES_TO_REMOVE[@]}"} ${DIRS_TO_REMOVE[@]+"${DIRS_TO_REMOVE[@]}"} \
              ${MODIFY_FILES[@]+"${MODIFY_FILES[@]}"} ${MCP_CONFIGS_TO_CLEAN[@]+"${MCP_CONFIGS_TO_CLEAN[@]}"} \
              ${CONFIG_TO_REMOVE[@]+"${CONFIG_TO_REMOVE[@]}"}; do
       [ "$p" = "$MANIFEST_PATH" ] || printf '%s\0' "$p"
-    done | SOMA_ROOTS="$(join_lines "${SINK_ROOTS[@]}")" python3 -I -S -c "$PATH_CHECK_PY" plan 2>&1
+    done | SOMA_ROOTS="$(join_lines "${SINK_ROOTS[@]}")" soma_python -I -S -c "$PATH_CHECK_PY" plan 2>&1
   )" || plan_rc=$?
   if [ "$plan_rc" -ne 0 ]; then
     log_error "The removal plan contains paths outside the allowed roots:"

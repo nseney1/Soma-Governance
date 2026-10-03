@@ -135,6 +135,57 @@ normalize_path() {
 
 # (P7: resolve_script_dir removed — zero callers confirmed repo-wide)
 
+# ── Python Interpreter Resolution ────────────────────────────────
+# `command -v python3` is not proof of a working interpreter: under Git Bash
+# it can be the Windows Store App Installer stub, which exits 49 with no
+# output (BUG-037). A candidate is accepted only if it actually runs Python 3.
+# SOMA_PYTHON (one executable path) overrides the search. Resolved once when
+# this file is sourced so $(...) subshells reuse it; call through soma_python.
+SOMA_PYTHON_CMD=()
+
+# The probe only needs sys: -I -S keeps PYTHON* env vars, site-packages and
+# the current directory out of it (matches uninstall.sh's checker calls).
+_python_candidate_works() {
+  "$@" -I -S -c 'import sys; sys.exit(0 if sys.version_info[0] >= 3 else 1)' \
+    </dev/null >/dev/null 2>&1
+}
+
+resolve_python() {
+  [ "${#SOMA_PYTHON_CMD[@]}" -gt 0 ] && return 0
+  if [ -n "${SOMA_PYTHON:-}" ]; then
+    _python_candidate_works "$SOMA_PYTHON" || return 1
+    SOMA_PYTHON_CMD=("$SOMA_PYTHON")
+    return 0
+  fi
+  local cand
+  for cand in "python3" "python"; do
+    if command -v "$cand" >/dev/null 2>&1 && _python_candidate_works "$cand"; then
+      SOMA_PYTHON_CMD=("$cand")
+      return 0
+    fi
+  done
+  if command -v py >/dev/null 2>&1 && _python_candidate_works py -3; then
+    SOMA_PYTHON_CMD=(py -3)
+    return 0
+  fi
+  return 1
+}
+
+_python_missing_error() {
+  log_error "No working Python 3 interpreter found (tried ${SOMA_PYTHON:+SOMA_PYTHON=$SOMA_PYTHON, }python3, python, py -3). Install Python 3 or set SOMA_PYTHON to its path."
+}
+
+# soma_python <args...> — run the resolved interpreter, or fail loudly (127).
+soma_python() {
+  if ! resolve_python; then
+    _python_missing_error
+    return 127
+  fi
+  "${SOMA_PYTHON_CMD[@]}" "$@"
+}
+
+resolve_python || true
+
 # ── Configuration Loading ────────────────────────────────────────
 # Loads soma.conf if present. Environment variables take precedence.
 load_config() {
@@ -381,25 +432,48 @@ install_hooks() {
 
   mkdir -p "$target_dir"
 
-  # Thorns fix #4: Use python3 for safe JSON templating instead of sed
-  if command -v python3 &>/dev/null; then
-    python3 -c "
-import sys
-template = open(sys.argv[1]).read()
-rendered = template.replace('{{SCRIPTS_DIR}}', sys.argv[2])
-print(rendered, end='')
-" "$template" "$scripts_dir" > "$target"
-
-    # Validate rendered JSON
-    if python3 -m json.tool "$target" > /dev/null 2>&1; then
-      log_info "hooks.json installed to $(basename "$target_dir")/"
-    else
-      log_error "hooks.json rendering produced invalid JSON"
-      rm -f "$target"
-      return 1
-    fi
-  else
-    log_warn "python3 not found, skipping hooks installation"
-    return 0
+  # Thorns fix #4: Use python for safe JSON templating instead of sed.
+  # No interpreter is an error, not a skip: silently missing hooks leave the
+  # safety gate uninstalled (BUG-037).
+  if ! resolve_python; then
+    _python_missing_error
+    log_error "hooks.json not installed"
+    return 1
   fi
+  # Render to a temp file beside the target and replace it only once the
+  # result is known-good JSON: truncating hooks.json first left an empty or
+  # missing file (and no safety gate) whenever rendering failed. The template
+  # is UTF-8 regardless of the locale encoding. Mode "x" refuses to follow a
+  # pre-planted file or symlink at the temp path.
+  local tmp="$target_dir/.hooks.json.$$.tmp"
+  local rc=0
+  soma_python -c "
+import json, sys
+with open(sys.argv[1], encoding='utf-8') as fh:
+    rendered = fh.read().replace('{{SCRIPTS_DIR}}', sys.argv[2])
+try:
+    json.loads(rendered)
+except ValueError as exc:
+    sys.stderr.write('invalid JSON: %s\n' % exc)
+    sys.exit(3)
+with open(sys.argv[3], 'x', encoding='utf-8', newline='') as fh:
+    fh.write(rendered)
+" "$template" "$scripts_dir" "$tmp" || rc=$?
+
+  if [ "$rc" -ne 0 ]; then
+    rm -f -- "$tmp"
+    if [ "$rc" -eq 3 ]; then
+      log_error "hooks.json rendering produced invalid JSON"
+    else
+      log_error "hooks.json rendering failed (exit $rc)"
+    fi
+    log_error "hooks.json not installed; any existing $(basename "$target_dir")/hooks.json was left unchanged"
+    return 1
+  fi
+  if ! mv -f -- "$tmp" "$target"; then
+    rm -f -- "$tmp"
+    log_error "Could not move rendered hooks.json into place at $target"
+    return 1
+  fi
+  log_info "hooks.json installed to $(basename "$target_dir")/"
 }

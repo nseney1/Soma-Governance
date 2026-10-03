@@ -5,6 +5,7 @@ import json
 import math
 import os
 import subprocess
+import sys
 
 from soma_resolve import resolve_workspace
 from soma_sdk.cells import parse_cell_file
@@ -136,4 +137,8 @@ def main():
         print('═══════════════════════════════════════════')
 
 if __name__ == '__main__':
+    # Output uses non-ASCII symbols; on a cp1252 stdout printing them
+    # raised UnicodeEncodeError and the script exited 1 (BUG-038).
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(errors="replace")
     main()

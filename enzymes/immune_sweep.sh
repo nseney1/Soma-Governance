@@ -22,6 +22,10 @@ set -euo pipefail
 # ============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/common.sh"  # soma_python (BUG-037)
+# BUG-042: RESOLVED_HOME was read but never set, so `set -u` aborted the sweep
+# unless SOMA_DATA_DIR was exported. resolve_home fails loudly with no home.
+RESOLVED_HOME="$(resolve_home)"
 
 # Configurable data directory — defaults to Antigravity location
 SOMA_DATA_DIR="${SOMA_DATA_DIR:-$RESOLVED_HOME/.gemini/antigravity}"
@@ -32,6 +36,9 @@ SWEEP_LOG="$GOVERNANCE_DIR/sweep_log.jsonl"
 PROPOSALS="$GOVERNANCE_DIR/pending_proposals.md"
 TAXONOMY="$GOVERNANCE_DIR/taxonomy.json"
 SWEEP_SCANNER="$SCRIPT_DIR/sweep_session.py"
+# The sweep appends to sweep_log.jsonl and writes session_metrics/: on a fresh
+# home neither directory exists yet (surfaced once BUG-042 stopped the abort).
+mkdir -p "$METRICS_DIR"
 
 ACTIVE_ONLY="${1:-}"
 TIMESTAMP="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
@@ -70,7 +77,7 @@ if [ "$ACTIVE_ONLY" != "--active-only" ]; then
     # Only process sessions with >100 steps
     if [ "$step_count" -gt 100 ]; then
       echo "  🔍 $short_id ($step_count steps) — generating metrics..."
-      if python3 "$SWEEP_SCANNER" "$transcript" > "$metrics_file" 2>/dev/null; then
+      if soma_python "$SWEEP_SCANNER" "$transcript" > "$metrics_file" 2>/dev/null; then
         metrics_generated=$((metrics_generated + 1))
         echo "  ✅ $short_id: metrics generated"
       else
@@ -94,7 +101,7 @@ warning_report=""
 
 if [ -f "$AUDIT_LOG" ] && [ -s "$AUDIT_LOG" ]; then
   # Count warnings by rule
-  warning_tally="$(python3 -c "
+  warning_tally="$(soma_python -c "
 import json, sys
 from collections import Counter
 
@@ -134,7 +141,7 @@ echo ""
 
 echo "📋 Check 3: Recomputing aggregate metrics..."
 
-metrics_summary="$(python3 -c "
+metrics_summary="$(soma_python -c "
 import json, os, glob
 
 metrics_dir = '$METRICS_DIR'
@@ -197,12 +204,12 @@ for transcript in $(find "$BRAIN_DIR" -name "transcript.jsonl" -mmin -120 2>/dev
     session_id="${rel%%/*}"
     short_id="${session_id:0:8}"
 
-    summary="$(python3 "$SWEEP_SCANNER" "$transcript" --summary-only 2>/dev/null || echo "{}")"
-    waste_rate="$(echo "$summary" | python3 -c "import json,sys; print(json.load(sys.stdin).get('waste_rate',0))" 2>/dev/null || echo "0")"
-    top_pattern="$(echo "$summary" | python3 -c "import json,sys; print(json.load(sys.stdin).get('top_pattern','unknown'))" 2>/dev/null || echo "unknown")"
+    summary="$(soma_python "$SWEEP_SCANNER" "$transcript" --summary-only 2>/dev/null || echo "{}")"
+    waste_rate="$(echo "$summary" | soma_python -c "import json,sys; print(json.load(sys.stdin).get('waste_rate',0))" 2>/dev/null || echo "0")"
+    top_pattern="$(echo "$summary" | soma_python -c "import json,sys; print(json.load(sys.stdin).get('top_pattern','unknown'))" 2>/dev/null || echo "unknown")"
 
     # Convert to percentage for comparison
-    waste_pct="$(python3 -c "import sys; print(int(float(sys.argv[1]) * 100))" "$waste_rate" 2>/dev/null || echo "0")"
+    waste_pct="$(soma_python -c "import sys; print(int(float(sys.argv[1]) * 100))" "$waste_rate" 2>/dev/null || echo "0")"
 
     if [ "$waste_pct" -gt 15 ]; then
       echo "  ⚠️  $short_id: ${step_count} steps, ~${waste_pct}% waste, top: $top_pattern"

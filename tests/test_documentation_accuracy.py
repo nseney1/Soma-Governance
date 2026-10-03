@@ -140,11 +140,12 @@ def test_windows_issue_sections_match_bug_registry():
         assert bugs[bug_id]["fixed_in"] == f"v{version}"
         assert f"### {bug_id}:" in fixed
         assert f"### {bug_id}:" not in open_issues
-    for bug_id in ("BUG-010", "BUG-012", "BUG-013", "BUG-035", "BUG-036"):
+    for bug_id in ("BUG-010", "BUG-012", "BUG-013", "BUG-035", "BUG-036",
+                   "BUG-037", "BUG-038"):
         assert bugs[bug_id]["status"] == "fixed"
         assert f"### {bug_id}:" in fixed
         assert f"### {bug_id}:" not in open_issues
-    for bug_id in ("BUG-014", "BUG-037", "BUG-038"):
+    for bug_id in ("BUG-014",):
         assert bugs[bug_id]["status"] == "open"
         assert f"### {bug_id}:" in open_issues
 

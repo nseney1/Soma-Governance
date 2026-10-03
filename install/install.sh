@@ -187,15 +187,16 @@ EOF
 # when `python3 -m soma_mcp` is otherwise unavailable from that workspace.
 merge_mcp_config() {
   local config_file="$1" workspace="$2" source_fallback=""
-  if ! command -v python3 >/dev/null 2>&1; then
-    log_error "python3 is required to safely merge MCP JSON configuration."
+  if ! resolve_python; then
+    _python_missing_error
+    log_error "Python 3 is required to safely merge MCP JSON configuration."
     return 1
   fi
-  if ! (cd "$workspace" && python3 -c 'import soma_mcp' >/dev/null 2>&1); then
+  if ! (cd "$workspace" && soma_python -c 'import soma_mcp' >/dev/null 2>&1); then
     source_fallback="$REPO_DIR"
   fi
   SOMA_MCP_FILE="$config_file" SOMA_WORKSPACE="$workspace" \
-    SOMA_SOURCE_FALLBACK="$source_fallback" python3 - <<'PY'
+    SOMA_SOURCE_FALLBACK="$source_fallback" soma_python - <<'PY'
 import json
 import os
 import stat
