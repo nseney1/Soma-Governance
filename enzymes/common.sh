@@ -5,6 +5,11 @@
 
 set -euo pipefail
 
+# Resolve a working interpreter once; every script that sources this
+# file calls soma_py (BUG-037).
+source "$(dirname "${BASH_SOURCE[0]}")/soma_python.sh"
+soma_resolve_python || true
+
 # ── Colors & Formatting ──────────────────────────────────────────
 readonly GREEN='\033[0;32m'
 readonly YELLOW='\033[1;33m'
@@ -366,7 +371,7 @@ install_hooks() {
   local template="$repo_dir/install/hooks.json.template"
   # Fallback: check repo root for backward compatibility
   [ ! -f "$template" ] && template="$repo_dir/hooks.json.template"
-  local scripts_dir="$repo_dir/enzymes"
+  local scripts_dir="$(normalize_path "$repo_dir/enzymes")"
   local target="$target_dir/hooks.json"
 
   if [ ! -f "$template" ]; then
@@ -381,25 +386,53 @@ install_hooks() {
 
   mkdir -p "$target_dir"
 
-  # Thorns fix #4: Use python3 for safe JSON templating instead of sed
-  if command -v python3 &>/dev/null; then
-    python3 -c "
-import sys
-template = open(sys.argv[1]).read()
-rendered = template.replace('{{SCRIPTS_DIR}}', sys.argv[2])
-print(rendered, end='')
-" "$template" "$scripts_dir" > "$target"
-
-    # Validate rendered JSON
-    if python3 -m json.tool "$target" > /dev/null 2>&1; then
-      log_info "hooks.json installed to $(basename "$target_dir")/"
-    else
-      log_error "hooks.json rendering produced invalid JSON"
-      rm -f "$target"
-      return 1
-    fi
-  else
-    log_warn "python3 not found, skipping hooks installation"
+  # Thorns fix #4: Use Python for safe JSON templating instead of sed
+  if [ -z "${SOMA_PYTHON:-}" ]; then
+    log_warn "No working Python 3.9+ found, skipping hooks installation"
     return 0
   fi
+  # Render to a temp file beside the target and replace it only once the
+  # result is known-good JSON: writing hooks.json in place left it empty or
+  # missing (and no safety gate) whenever rendering failed. Mode "x" refuses
+  # a pre-planted file or symlink at the temp path. An existing hooks.json
+  # keeps its mode. Validation is json.loads in the same snippet: `-m
+  # json.tool` put the CWD first on sys.path (BUG-044).
+  # The render+swap runs in a subshell with its own traps, so INT/TERM/EXIT
+  # remove the temp file without replacing a trap of the sourcing caller.
+  local tmp="$target_dir/.hooks.json.$$.tmp"
+  local rc=0
+  (
+    trap "rm -f -- \"$tmp\"" EXIT
+    trap "rm -f -- \"$tmp\"; exit 130" INT
+    trap "rm -f -- \"$tmp\"; exit 143" TERM
+    soma_py -c "
+import json, os, stat, sys
+with open(sys.argv[1], encoding='utf-8') as fh:
+    rendered = fh.read().replace('{{SCRIPTS_DIR}}', sys.argv[2].replace(chr(92), '/'))
+try:
+    json.loads(rendered)
+except ValueError as exc:
+    sys.stderr.write('invalid JSON: %s\n' % exc)
+    sys.exit(3)
+with open(sys.argv[3], 'x', encoding='utf-8', newline='\n') as fh:
+    fh.write(rendered)
+try:
+    os.chmod(sys.argv[3], stat.S_IMODE(os.stat(sys.argv[4]).st_mode))
+except FileNotFoundError:
+    pass
+" "$template" "$scripts_dir" "$tmp" "$target" || exit $?
+    mv -f -- "$tmp" "$target" || exit 4
+    tmp=""
+  ) || rc=$?
+
+  if [ "$rc" -ne 0 ]; then
+    case "$rc" in
+      3) log_error "hooks.json rendering produced invalid JSON" ;;
+      4) log_error "Could not move rendered hooks.json into place at $target" ;;
+      *) log_error "hooks.json rendering failed (exit $rc)" ;;
+    esac
+    log_error "hooks.json not installed; any existing $(basename "$target_dir")/hooks.json was left unchanged"
+    return 1
+  fi
+  log_info "hooks.json installed to $(basename "$target_dir")/"
 }

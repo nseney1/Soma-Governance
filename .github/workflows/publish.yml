@@ -4,28 +4,45 @@ on:
   release:
     types: [published]
 
+# Least privilege: every job gets a read-only token unless it grants more below.
+permissions:
+  contents: read
+
 jobs:
   validate:
     uses: ./.github/workflows/validate.yml
+    # A reusable workflow can never exceed its caller's grants; the build job
+    # inside needs these to sign build provenance attestations.
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
 
   publish:
     needs: validate
     runs-on: ubuntu-latest
+    # Trusted Publishing (OIDC): PyPI trusts this repo + workflow + environment,
+    # so no long-lived API token exists. id-token is only for the upload step.
+    environment:
+      name: pypi
+      url: https://pypi.org/p/soma-governance
+    permissions:
+      contents: read
+      id-token: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.12"
-
-      - name: Install publish tools
-        run: pip install twine
 
       # Never rebuild here: download the artifact that the validate jobs
       # verified, installed and smoke-tested in this same workflow run.
       - name: Download validated artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: soma-wheel
           path: dist/
@@ -38,9 +55,20 @@ jobs:
           python .github/scripts/verify_dist.py verify dist > publish-files.txt
           cat publish-files.txt
 
-      - name: Publish to PyPI
+      # The publish action uploads every file in packages-dir, and dist/ also
+      # holds SHA256SUMS. Stage exactly the verified files listed above.
+      - name: Stage verified files for upload
         shell: bash
-        run: twine upload $(cat publish-files.txt)
-        env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir publish-dist
+          while IFS= read -r f; do
+            cp -- "$f" publish-dist/
+          done < publish-files.txt
+          test "$(ls publish-dist | wc -l)" -eq "$(wc -l < publish-files.txt)"
+          ls -l publish-dist
+
+      - name: Publish to PyPI (Trusted Publishing)
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
+        with:
+          packages-dir: publish-dist/

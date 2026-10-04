@@ -1,14 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-DIR="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$DIR/common.sh"
-RESOLVED_HOME=$(resolve_home)
-
 # Session Close — Stop hook
 # Exports conversation logs and syncs both repos when session ends.
 
-# Symlink-safe resolution (Thorns fix #3)
+# Symlink-safe resolution (Thorns fix #3). Must run before common.sh is
+# sourced: a lexical dirname of a symlinked hook names the link's directory.
 PRG="${BASH_SOURCE[0]}"
 while [ -h "$PRG" ]; do
   DIR="$(cd -P "$(dirname "$PRG")" && pwd)"
@@ -16,9 +13,14 @@ while [ -h "$PRG" ]; do
   [[ $PRG != /* ]] && PRG="$DIR/$PRG"
 done
 SCRIPT_DIR="$(cd -P "$(dirname "$PRG")" && pwd)"
+source "$SCRIPT_DIR/common.sh"
+RESOLVED_HOME=$(resolve_home)
 
 # Resolve repo root relative to this script (enzymes/ -> repo root)
 STEERING_REPO="$(cd -P "$SCRIPT_DIR/.." && pwd)"
+# Inline snippets run without the CWD on sys.path (BUG-044), so soma_core is
+# imported from the steering repo explicitly, not from whatever the CWD is.
+export SOMA_STEERING_REPO="$STEERING_REPO"
 LOGS_REPO="$RESOLVED_HOME/.gemini/antigravity/scratch/ai-conversation-logs"
 EXPORT_SCRIPT="$STEERING_REPO/enzymes/export_logs.sh"
 
@@ -58,21 +60,22 @@ echo '{}'
 
 # === Automated Outcome Feedback ===
 echo "Running outcome engine..."
-SCRIPTS_DIR="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-python3 "$SCRIPTS_DIR/outcome_engine.py" 2>/dev/null || true
+SCRIPTS_DIR="$SCRIPT_DIR"
+soma_py "$SCRIPTS_DIR/outcome_engine.py" 2>/dev/null || true
 
 # === Automated Cell Evolution ===
 echo "Running cell evolution..."
 
 # 1. Evaluate fitness with telomere shortening decay
-python3 "$SCRIPTS_DIR/cell_fitness.py" 2>/dev/null || true
+soma_py "$SCRIPTS_DIR/cell_fitness.py" 2>/dev/null || true
 
 # 2. Run selection pressure (archive extinct cells)
 bash "$SCRIPTS_DIR/cell_selection.sh" --execute 2>/dev/null || true
 
 # 3. Probabilistic crossover: if >5 cells with fitness >0.5, attempt one crossover
-CROSSOVER_CANDIDATES=$(python3 -c "
-import os, glob
+CROSSOVER_CANDIDATES=$(soma_py -c "
+import os, glob, sys
+sys.path.insert(0, os.environ['SOMA_STEERING_REPO'])
 import yaml
 from soma_core.evidence import aggregate_signals
 
@@ -100,12 +103,13 @@ else:
 if [ -n "$CROSSOVER_CANDIDATES" ]; then
   read -r CELL_A CELL_B <<< "$CROSSOVER_CANDIDATES"
   echo "  Attempting crossover: $CELL_A × $CELL_B"
-  python3 "$SCRIPTS_DIR/cell_crossover.py" "$CELL_A" "$CELL_B" 2>/dev/null || true
+  soma_py "$SCRIPTS_DIR/cell_crossover.py" "$CELL_A" "$CELL_B" 2>/dev/null || true
 fi
 
 # 4. Check for metamorphosis candidates
-python3 -c "
-import os, glob
+soma_py -c "
+import os, glob, sys
+sys.path.insert(0, os.environ['SOMA_STEERING_REPO'])
 import yaml
 from soma_core.evidence import aggregate_signals
 
@@ -135,7 +139,7 @@ for f in cells:
 " 2>/dev/null || true
 
 # === Stochastic Genesis (Diversity Injection) ===
-python3 "$SCRIPTS_DIR/cell_genesis_stochastic.py" 2>/dev/null || true
+soma_py "$SCRIPTS_DIR/cell_genesis_stochastic.py" 2>/dev/null || true
 
 # === Mulch → Cell Pipeline ===
 MULCH_QUEUE="$(pwd)/.soma/governance/mulch_queue.jsonl"
@@ -143,10 +147,10 @@ if [ -f "$MULCH_QUEUE" ] && [ -s "$MULCH_QUEUE" ]; then
     echo "  Processing mulch queue..."
     MULCH_COUNT=0
     while IFS= read -r line; do
-        NAME=$(echo "$line" | python3 -c "import sys,json; print(json.load(sys.stdin).get('name','mulch-cell'))" 2>/dev/null || echo 'mulch-cell')
-        HYPO=$(echo "$line" | python3 -c "import sys,json; print(json.load(sys.stdin).get('hypothesis',''))" 2>/dev/null || echo '')
-        PRED=$(echo "$line" | python3 -c "import sys,json; print(json.load(sys.stdin).get('prediction','Mulch hypothesis will reduce defect recurrence'))" 2>/dev/null || echo 'Mulch hypothesis will reduce defect recurrence')
-        FALS=$(echo "$line" | python3 -c "import sys,json; print(json.load(sys.stdin).get('falsification','Defect pattern recurs with equal frequency'))" 2>/dev/null || echo 'Defect pattern recurs with equal frequency')
+        NAME=$(echo "$line" | soma_py -c "import sys,json; print(json.load(sys.stdin).get('name','mulch-cell'))" 2>/dev/null || echo 'mulch-cell')
+        HYPO=$(echo "$line" | soma_py -c "import sys,json; print(json.load(sys.stdin).get('hypothesis',''))" 2>/dev/null || echo '')
+        PRED=$(echo "$line" | soma_py -c "import sys,json; print(json.load(sys.stdin).get('prediction','Mulch hypothesis will reduce defect recurrence'))" 2>/dev/null || echo 'Mulch hypothesis will reduce defect recurrence')
+        FALS=$(echo "$line" | soma_py -c "import sys,json; print(json.load(sys.stdin).get('falsification','Defect pattern recurs with equal frequency'))" 2>/dev/null || echo 'Defect pattern recurs with equal frequency')
         if [ -n "$HYPO" ]; then
             bash "$SCRIPTS_DIR/cell_create.sh" --id "$NAME" --type vacuole --hypothesis "$HYPO" --prediction "$PRED" --falsification "$FALS" 2>/dev/null && MULCH_COUNT=$((MULCH_COUNT + 1)) || true
         fi
@@ -156,8 +160,9 @@ if [ -f "$MULCH_QUEUE" ] && [ -s "$MULCH_QUEUE" ]; then
 fi
 
 # === Session Dashboard ===
-python3 -c "
-import os, glob
+soma_py -c "
+import os, glob, sys
+sys.path.insert(0, os.environ['SOMA_STEERING_REPO'])
 import yaml
 from soma_core.evidence import aggregate_signals
 

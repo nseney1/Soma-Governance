@@ -47,7 +47,9 @@ def format_snr(value):
 def decayed_fitness(raw_score, last_trigger_date, telomere_days=30):
     if last_trigger_date is None or raw_score is None:
         return raw_score
-    days_since = (datetime.now() - last_trigger_date).days
+    now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
+    trigger_utc = last_trigger_date.replace(tzinfo=None) if getattr(last_trigger_date, 'tzinfo', None) else last_trigger_date
+    days_since = max(0, (now_utc - trigger_utc).days)
     decay_factor = 0.5 ** (days_since / telomere_days)
     return round(raw_score * decay_factor, 4)
 
@@ -175,7 +177,7 @@ def main():
                 try:
                     fmt = "%Y-%m-%dT%H:%M:%SZ" if 'T' in created_str else "%Y-%m-%d"
                     created_date = datetime.strptime(created_str, fmt)
-                    current_date = datetime.now()
+                    current_date = datetime.now(timezone.utc).replace(tzinfo=None)
                     days_since_created = (current_date - created_date).days
                     if days_since_created > expiry_days:
                         status = "DORMANT"
@@ -204,12 +206,30 @@ def main():
             metadata['fitness']['false_positives'] = 0
             
             status = "DECAYING"
+
+            try:
+                import yaml
+                with open(cell_file, 'r', encoding='utf-8') as cf_fh:
+                    c_body = cf_fh.read()
+                if c_body.startswith('---'):
+                    c_end = c_body.find('---', 3)
+                    if c_end != -1:
+                        new_fm = yaml.dump(metadata, sort_keys=False, default_flow_style=False, allow_unicode=True)
+                        new_c = f"---\n{new_fm}---\n{c_body[c_end+3:].lstrip()}"
+                        tmp_cf = f"{cell_file}.tmp.{os.getpid()}"
+                        with open(tmp_cf, 'w', encoding='utf-8') as cf_out:
+                            cf_out.write(new_c)
+                            cf_out.flush()
+                            os.fsync(cf_out.fileno())
+                        os.replace(tmp_cf, cell_file)
+            except Exception as exc:
+                print(f"Failed to persist decay update for {cell_file}: {exc}", file=sys.stderr)
             
             metrics_dir = os.path.join(workspace, '.soma', 'metrics')
             os.makedirs(metrics_dir, exist_ok=True)
             with open(os.path.join(metrics_dir, 'decay_transitions.jsonl'), 'a', encoding='utf-8') as mf:
                 mf.write(json.dumps({
-                    'timestamp': datetime.now(timezone.utc).isoformat() + "Z",
+                    'timestamp': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
                     'cell_id': cell_name,
                     'from_type': cell_type,
                     'to_type': new_type
@@ -378,4 +398,7 @@ def main():
 
 
 if __name__ == "__main__":
+    # A cp1252 stdout can't encode this script's symbols (BUG-038).
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(errors="replace")
     main()

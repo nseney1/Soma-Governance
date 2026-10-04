@@ -34,7 +34,7 @@ class TestMutationTesterContract:
         test = tmp_path / "test_target.py"
         test.write_text(textwrap.dedent(f"""\
             import sys
-            sys.path.insert(0, '{tmp_path}')
+            sys.path.insert(0, {str(tmp_path)!r})
             from target import add
             def test_add():
                 assert add(2, 3) == 5
@@ -65,7 +65,7 @@ class TestMutationTesterContract:
         test = tmp_path / "test_target.py"
         test.write_text(textwrap.dedent(f"""\
             import sys
-            sys.path.insert(0, '{tmp_path}')
+            sys.path.insert(0, {str(tmp_path)!r})
             from target import compute
             def test_compute():
                 result = compute(5)
@@ -95,7 +95,7 @@ class TestMutationTesterContract:
         test = tmp_path / "test_target.py"
         test.write_text(textwrap.dedent(f"""\
             import sys
-            sys.path.insert(0, '{tmp_path}')
+            sys.path.insert(0, {str(tmp_path)!r})
             from target import multiply
             def test_multiply_basic():
                 assert multiply(3, 4) == 12
@@ -128,7 +128,7 @@ class TestMutationTesterContract:
         test = tmp_path / "test_target.py"
         test.write_text(textwrap.dedent(f"""\
             import sys
-            sys.path.insert(0, '{tmp_path}')
+            sys.path.insert(0, {str(tmp_path)!r})
             from target import negate
             def test_negate():
                 assert negate(5) == -5
@@ -156,7 +156,7 @@ class TestMutationTesterContract:
         test = tmp_path / "test_target.py"
         test.write_text(textwrap.dedent(f"""\
             import sys
-            sys.path.insert(0, '{tmp_path}')
+            sys.path.insert(0, {str(tmp_path)!r})
             from target import noop
             def test_noop():
                 assert noop() is None
@@ -190,7 +190,7 @@ class TestMutationTesterBudget:
         test = tmp_path / "test_target.py"
         test.write_text(textwrap.dedent(f"""\
             import sys
-            sys.path.insert(0, '{tmp_path}')
+            sys.path.insert(0, {str(tmp_path)!r})
             from target import big_function
             def test_basic():
                 result = big_function(2, 3, 4, 1)
@@ -210,3 +210,132 @@ class TestMutationTesterBudget:
         assert match, f"Could not parse mutation count from: {result.detail}"
         total = int(match.group(2)) if match.lastindex >= 2 else int(match.group(1))
         assert total <= 3, f"Expected <= 3 mutations attempted, got {total}"
+
+
+class TestMutationTesterFailsClosed:
+    """BUG-034: tests that cannot pass against the unmutated code used to
+    count as killing every mutant, so check() reported verdict=True."""
+
+    def _target(self, tmp_path):
+        src = tmp_path / "target.py"
+        src.write_text(textwrap.dedent("""\
+            def add(a, b):
+                return a + b
+        """))
+        return src
+
+    def test_unrunnable_test_file_fails_closed(self, tmp_path):
+        from immune_system.verification import mutation_tester
+
+        src = self._target(tmp_path)
+        test = tmp_path / "test_target.py"
+        test.write_text(textwrap.dedent(f"""\
+            import sys
+            sys.path.insert(0, {str(tmp_path)!r})
+            from target import add
+            def test_add(:
+                assert add(1, 2) == 3
+        """))
+
+        result = mutation_tester.check(str(src), "add", str(test))
+        assert result.verdict is False
+        assert "baseline" in result.detail.lower()
+        assert result.lines == [-1]
+
+    def test_baseline_assertion_failure_fails_closed(self, tmp_path):
+        from immune_system.verification import mutation_tester
+
+        src = self._target(tmp_path)
+        test = tmp_path / "test_target.py"
+        test.write_text(textwrap.dedent(f"""\
+            import sys
+            sys.path.insert(0, {str(tmp_path)!r})
+            from target import add
+            def test_add():
+                assert add(1, 2) == 4
+        """))
+
+        result = mutation_tester.check(str(src), "add", str(test))
+        assert result.verdict is False
+        assert "baseline" in result.detail.lower()
+
+
+class TestMutationTesterAppliesEveryCollectedMutation:
+    """BUG-039: comparison, boolean, statement-deletion and return-value
+    mutations were counted but never applied, so a test that doesn't
+    check them still reported verdict=True ("0/2 survived")."""
+
+    def test_unchecked_comparison_survives(self, tmp_path):
+        from immune_system.verification import mutation_tester
+
+        src = tmp_path / "target.py"
+        src.write_text(textwrap.dedent("""\
+            def eq(a, b):
+                return a == b
+        """))
+        test = tmp_path / "test_target.py"
+        test.write_text(textwrap.dedent(f"""\
+            import sys
+            sys.path.insert(0, {str(tmp_path)!r})
+            from target import eq
+            def test_eq():
+                eq(1, 2)
+        """))
+
+        result = mutation_tester.check(str(src), "eq", str(test))
+        assert result.verdict is False, result.detail
+        assert result.detail == "2/2 survived"
+
+    def test_checked_boolean_logic_kills_mutants(self, tmp_path):
+        from immune_system.verification import mutation_tester
+
+        src = tmp_path / "target.py"
+        src.write_text(textwrap.dedent("""\
+            def both(a, b):
+                return a and b
+        """))
+        test = tmp_path / "test_target.py"
+        test.write_text(textwrap.dedent(f"""\
+            import sys
+            sys.path.insert(0, {str(tmp_path)!r})
+            from target import both
+            def test_both():
+                assert both(True, False) is False
+                assert both(True, True) is True
+        """))
+
+        result = mutation_tester.check(str(src), "both", str(test))
+        assert result.verdict is True, result.detail
+        assert result.detail == "0/2 survived"
+
+    def test_docstring_and_return_none_are_not_mutated(self, tmp_path):
+        """Deleting a docstring or turning `return None` into `return None`
+        changes nothing, so no test could kill those mutants."""
+        from immune_system.verification import mutation_tester
+
+        src = tmp_path / "target.py"
+        src.write_text(textwrap.dedent('''\
+            def add(a, b):
+                """Add two numbers."""
+                return a + b
+
+            def nothing(x):
+                return None
+        '''))
+        test = tmp_path / "test_target.py"
+        test.write_text(textwrap.dedent(f"""\
+            import sys
+            sys.path.insert(0, {str(tmp_path)!r})
+            from target import add, nothing
+            def test_add():
+                assert add(1, 2) == 3
+                assert add(2, 5) == 7
+            def test_nothing():
+                assert nothing(1) is None
+        """))
+
+        documented = mutation_tester.check(str(src), "add", str(test))
+        assert documented.verdict is True, documented.detail
+        assert documented.detail == "0/2 survived"
+        returns_none = mutation_tester.check(str(src), "nothing", str(test))
+        assert returns_none.verdict is True, returns_none.detail

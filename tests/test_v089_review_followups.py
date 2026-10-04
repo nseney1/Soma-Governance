@@ -12,7 +12,7 @@ import os
 
 import pytest
 
-from conftest import REPO_ROOT, run
+from conftest import REPO_ROOT, require_bash, run, symlink_or_skip
 from test_outcome_engine_insights import (
     _covered, _cursor_path, _signals_log, _stub_main, _write_cell, _write_insights,
 )
@@ -136,7 +136,7 @@ def test_stow_style_symlinked_config_dir_inside_home_uninstalls(tmp_path):
     (real_kiro / "steering").mkdir(parents=True)
     rule = real_kiro / "steering" / "soma-rule.md"
     rule.write_text("rule\n", encoding="utf-8")
-    os.symlink(str(real_kiro), str(home / ".kiro"))
+    symlink_or_skip(real_kiro, home / ".kiro")
     manifest = home / ".soma" / "manifest.json"
     manifest.parent.mkdir(parents=True)
     manifest.write_text(json.dumps({
@@ -144,7 +144,7 @@ def test_stow_style_symlinked_config_dir_inside_home_uninstalls(tmp_path):
         "files": [str(home / ".kiro" / "steering" / "soma-rule.md")],
         "organs": [], "hooks": [],
     }), encoding="utf-8")
-    proc = run(["/bin/bash", UNINSTALL_SH, "kiro", "--force", "--no-restore", "--keep-config"],
+    proc = run([require_bash(), UNINSTALL_SH, "kiro", "--force", "--no-restore", "--keep-config"],
                cwd=str(project), env={"HOME": str(home), "USERPROFILE": str(home)})
     assert proc.returncode == 0, proc.stdout[-1500:] + proc.stderr[-1500:]
     assert not rule.exists()

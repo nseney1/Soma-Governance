@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
 from unittest.mock import patch
@@ -9,6 +10,7 @@ from unittest.mock import patch
 import pytest
 
 from soma_cli.doctor import (
+    _check_cli_resolvable,
     _check_python_version,
     _check_pyyaml,
     run_doctor,
@@ -83,3 +85,33 @@ def test_doctor_returns_one_on_failure(tmp_path, monkeypatch):
         result = run_doctor(args)
 
     assert result == 1
+
+
+# ── BUG-041: CLI not on PATH ─────────────────────────────────────────────────
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX shell remedy; Windows path covered in test_pathcheck")
+def test_cli_check_prints_zsh_remedy_when_unresolvable(tmp_path, monkeypatch, capsys):
+    bindir = tmp_path / ".local" / "bin"
+    bindir.mkdir(parents=True)
+    (bindir / "soma").write_text("#!/bin/sh\n")
+    monkeypatch.setenv("SHELL", "/usr/bin/zsh")
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("PATH", "/usr/bin:/bin")
+    monkeypatch.delenv("ZDOTDIR", raising=False)
+    monkeypatch.setattr("soma_cli.pathcheck.default_candidates", lambda: [str(bindir)])
+    monkeypatch.setattr("soma_cli.pathcheck.sys.platform", "linux")
+    with patch("soma_cli.doctor.shutil.which", return_value=None), \
+         patch("soma_cli.pathcheck.shutil.which", return_value=None):
+        assert _check_cli_resolvable() is False
+    out = capsys.readouterr().out
+    assert "soma CLI not found on PATH" in out
+    assert "~/.zshrc" in out
+    assert "python3 -m soma_cli" in out
+
+
+def test_cli_check_silent_remedy_when_resolvable(capsys):
+    with patch("soma_cli.doctor.shutil.which", return_value="/usr/local/bin/soma"):
+        assert _check_cli_resolvable() is True
+    out = capsys.readouterr().out
+    assert "export PATH" not in out

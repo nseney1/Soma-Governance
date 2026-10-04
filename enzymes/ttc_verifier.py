@@ -445,4 +445,7 @@ def _self_test() -> int:
 
 
 if __name__ == "__main__":
+    # A cp1252 stdout can't encode this script's symbols (BUG-038).
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(errors="replace")
     sys.exit(_self_test())

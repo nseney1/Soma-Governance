@@ -10,7 +10,7 @@ Usage:
     python cell_enforce.py --dry-run          # Preview without writing
     python cell_enforce.py --list             # List all enforcement artifacts
 """
-import os, sys, argparse, glob, json, re
+import os, sys, argparse, glob, json, re, shlex
 from datetime import datetime
 from datetime import timezone
 from pathlib import Path
@@ -43,6 +43,10 @@ def generate_precommit_check(cell, workspace):
     hypothesis = cell.get('hypothesis', '')
     target_paths = cell.get('target_paths', [])
     
+    quoted_name = shlex.quote(name)
+    quoted_hyp = shlex.quote(hypothesis[:80])
+    quoted_patterns = ' '.join(shlex.quote(p) for p in target_paths)
+    
     # Generate different checks based on cell type
     if cell_type == 'wall':
         # Walls generate strict pattern checks
@@ -50,7 +54,7 @@ def generate_precommit_check(cell, workspace):
 # Auto-generated enforcement artifact for: {name}
 # Type: {cell_type} | Tier: mechanical
 # Hypothesis: {hypothesis}
-# Generated: {datetime.now(timezone.utc).isoformat()}Z
+# Generated: {datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')}
 #
 # This check runs as part of the pre-commit hook.
 # To disable: remove this file or demote the cell to advisory.
@@ -60,7 +64,7 @@ set -uo pipefail
 CHANGED_FILES=$(git diff --cached --name-only 2>/dev/null)
 if [ -z "$CHANGED_FILES" ]; then exit 0; fi
 
-TARGET_PATTERNS=({' '.join(f'"{p}"' for p in target_paths)})
+TARGET_PATTERNS=({quoted_patterns})
 MATCHED=0
 
 while IFS= read -r file; do
@@ -72,12 +76,15 @@ while IFS= read -r file; do
 done <<< "$CHANGED_FILES"
 
 if [ "$MATCHED" -eq 1 ]; then
-    echo "\U0001f6e1\ufe0f  [{name}] Cell triggered (mechanical enforcement)"
-    echo "   Hypothesis: {hypothesis[:80]}"
+    echo -n "🛡️  ["
+    echo -n {quoted_name}
+    echo "] Cell triggered (mechanical enforcement)"
+    echo -n "   Hypothesis: "
+    echo {quoted_hyp}
     echo "   Files: $CHANGED_FILES"
     # Signal the cell
     SCRIPT_DIR="$(dirname "$0")/../../scripts"
-    [ -f "$SCRIPT_DIR/cell_signal.sh" ] && bash "$SCRIPT_DIR/cell_signal.sh" "{name}" tp 2>/dev/null
+    [ -f "$SCRIPT_DIR/cell_signal.sh" ] && bash "$SCRIPT_DIR/cell_signal.sh" {quoted_name} tp 2>/dev/null
     exit 1  # Mechanical: block commit
 fi
 
@@ -88,14 +95,14 @@ exit 0  # No match: allow commit
 # Auto-generated enforcement artifact for: {name}
 # Type: {cell_type} | Tier: mechanical
 # Hypothesis: {hypothesis}
-# Generated: {datetime.now(timezone.utc).isoformat()}Z
+# Generated: {datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')}
 
 set -uo pipefail
 
 CHANGED_FILES=$(git diff --cached --name-only 2>/dev/null)
 if [ -z "$CHANGED_FILES" ]; then exit 0; fi
 
-TARGET_PATTERNS=({' '.join(f'"{p}"' for p in target_paths)})
+TARGET_PATTERNS=({quoted_patterns})
 MATCHED=0
 
 while IFS= read -r file; do
@@ -107,8 +114,11 @@ while IFS= read -r file; do
 done <<< "$CHANGED_FILES"
 
 if [ "$MATCHED" -eq 1 ]; then
-    echo "\u26a0\ufe0f  [{name}] Membrane escalation triggered (mechanical enforcement)"
-    echo "   Hypothesis: {hypothesis[:80]}"
+    echo -n "⚠️  ["
+    echo -n {quoted_name}
+    echo "] Membrane escalation triggered (mechanical enforcement)"
+    echo -n "   Hypothesis: "
+    echo {quoted_hyp}
     echo "   Recommend elevated review before merging."
     exit 1  # Mechanical: block commit
 fi
@@ -120,14 +130,14 @@ exit 0  # No match: allow commit
 # Auto-generated enforcement artifact for: {name}
 # Type: {cell_type} | Tier: mechanical
 # Hypothesis: {hypothesis}
-# Generated: {datetime.now(timezone.utc).isoformat()}Z
+# Generated: {datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')}
 
 set -uo pipefail
 
 CHANGED_FILES=$(git diff --cached --name-only 2>/dev/null)
 if [ -z "$CHANGED_FILES" ]; then exit 0; fi
 
-TARGET_PATTERNS=({' '.join(f'"{p}"' for p in target_paths)})
+TARGET_PATTERNS=({quoted_patterns})
 MATCHED=0
 
 while IFS= read -r file; do
@@ -139,8 +149,11 @@ while IFS= read -r file; do
 done <<< "$CHANGED_FILES"
 
 if [ "$MATCHED" -eq 1 ]; then
-    echo "\U0001f50d  [{name}] Trap check triggered (mechanical enforcement)"
-    echo "   Hypothesis: {hypothesis[:80]}"
+    echo -n "🔍  ["
+    echo -n {quoted_name}
+    echo "] Trap check triggered (mechanical enforcement)"
+    echo -n "   Hypothesis: "
+    echo {quoted_hyp}
     exit 1  # Mechanical: block commit
 fi
 
@@ -156,10 +169,15 @@ def generate_gate_assertion(cell, workspace):
     hypothesis = cell.get('hypothesis', '')
     target_paths = cell.get('target_paths', [])
     
+    class_suffix = re.sub(r"[^a-zA-Z0-9]", "_", name)
+    json_name = json.dumps(name)
+    json_hyp = json.dumps(hypothesis)
+    json_targets = json.dumps(target_paths)
+    
     assertion = f'''# Auto-generated gate assertion for: {name}
 # Type: {cell_type} | Tier: gate
 # Hypothesis: {hypothesis}
-# Generated: {datetime.now(timezone.utc).isoformat()}Z
+# Generated: {datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')}
 #
 # This assertion is a deterministic gate that cannot be bypassed
 # without modifying this file. It was auto-generated when the cell
@@ -169,14 +187,15 @@ def generate_gate_assertion(cell, workspace):
 
 import os
 import subprocess
+import sys
 
 
-class Gate_{re.sub(r"[^a-zA-Z0-9]", "_", name)}:
+class Gate_{class_suffix}:
     """Runtime gate for: {hypothesis[:100]}"""
     
-    CELL_NAME = "{name}"
-    HYPOTHESIS = """{hypothesis}"""
-    TARGET_PATHS = {target_paths}
+    CELL_NAME = {json_name}
+    HYPOTHESIS = {json_hyp}
+    TARGET_PATHS = {json_targets}
     
     @classmethod
     def check(cls, context=None):
@@ -209,11 +228,11 @@ class Gate_{re.sub(r"[^a-zA-Z0-9]", "_", name)}:
             )
             if os.path.exists(escaped_script) and cls.TARGET_PATHS:
                 subprocess.run(
-                    ['python3', escaped_script, '--event', 'crash',
+                    [sys.executable, escaped_script, '--event', 'crash',
                      '--files'] + cls.TARGET_PATHS + ['--severity', 'critical'],
                     capture_output=True
                 )
-            raise RuntimeError(f"\U0001f6d1 GATE VIOLATION [{cls.CELL_NAME}]: {{msg}}")
+            raise RuntimeError(f"\U0001f6d1 GATE VIOLATION [{{cls.CELL_NAME}}]: {{msg}}")
 '''
     return assertion
 
@@ -361,4 +380,7 @@ def main():
 
 
 if __name__ == '__main__':
+    # A cp1252 stdout can't encode this script's symbols (BUG-038).
+    if hasattr(sys.stdout, 'reconfigure'):
+        sys.stdout.reconfigure(errors='replace')
     main()

@@ -7,6 +7,8 @@ import argparse
 
 import pytest
 
+from conftest import symlink_or_skip
+
 
 class TestDetectPlatform:
     """Platform detection based on directory markers."""
@@ -88,12 +90,12 @@ class TestGetRulesDir:
     def test_gemini_rules_dir(self, tmp_path):
         from soma_cli.init import get_rules_dir
         result = get_rules_dir("gemini", tmp_path)
-        assert str(result).endswith(".gemini/config/rules")
+        assert result.parts[-3:] == (".gemini", "config", "rules")
 
     def test_cursor_rules_dir(self, tmp_path):
         from soma_cli.init import get_rules_dir
         result = get_rules_dir("cursor", tmp_path)
-        assert str(result).endswith(".cursor/rules")
+        assert result.parts[-2:] == (".cursor", "rules")
 
     def test_claude_rules_dir(self, tmp_path):
         from soma_cli.init import get_rules_dir
@@ -218,7 +220,7 @@ class TestSymlinkGuard:
         rules_dir.mkdir()
         target_file = tmp_path / "target.txt"
         target_file.write_text("original target content")
-        (rules_dir / "providence.md").symlink_to(target_file)
+        symlink_or_skip(target_file, rules_dir / "providence.md")
 
         install_starter_rules(rules_dir, dry_run=False, force=True)
 

@@ -115,6 +115,9 @@ def check(
 
 
 if __name__ == '__main__':
+    # A cp1252 stdout can't encode this script's symbols (BUG-038).
+    if hasattr(sys.stdout, 'reconfigure'):
+        sys.stdout.reconfigure(errors='replace')
     if len(sys.argv) < 3:
         print(f"Usage: {sys.argv[0]} <file> <dict_name> [--exclude key1,key2]")
         sys.exit(1)

@@ -129,6 +129,15 @@ class TestCellBaseline:
                  fitness=CellFitness(triggers=20, true_positives=10))
         assert c.is_promotable is False
 
+    def test_is_promotable_with_age(self):
+        """is_promotable_with_age validates minimum age in days."""
+        from datetime import datetime, timezone, timedelta
+        c = Cell(name='test', type='vacuole',
+                 fitness=CellFitness(triggers=20, true_positives=19))
+        c.created_date = datetime.now(timezone.utc) - timedelta(days=10)
+        assert c.is_promotable_with_age(min_age_days=30) is False
+        assert c.is_promotable_with_age(min_age_days=5) is True
+
     def test_cell_fitness_yaml_roundtrip(self):
         """CellFitness data survives YAML serialize → deserialize."""
         original = CellFitness(

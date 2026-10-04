@@ -14,11 +14,14 @@ trust boundary is not mocked.
 """
 import json
 import os
+import time
 
 import pytest
 
 import soma_mcp.server as server
 from soma_core import receipts
+
+STALE_RECEIPT = "Invalid, expired, or mismatched receipt."
 
 
 def _make_workspace(root, cell_name):
@@ -132,7 +135,7 @@ def test_receipt_is_stale_after_target_file_changes(workspaces):
     receipt = _request_receipt("soma_audit_security", args)
     target.write_text("x = 'changed after scan'\n", encoding="utf-8")
     resp = _call("soma_audit_security", dict(args, receipt=receipt))
-    assert "error" in resp and "receipt" in resp["error"]["message"].lower(), resp
+    assert resp.get("error", {}).get("message") == STALE_RECEIPT, resp
 
 
 def test_receipt_is_stale_after_cells_change(workspaces):
@@ -142,8 +145,21 @@ def test_receipt_is_stale_after_cells_change(workspaces):
     cell = canonical / ".soma" / "cells" / "vacuoles" / "cell-canonical.md"
     cell.write_text(cell.read_text(encoding="utf-8") + "\nedited\n", encoding="utf-8")
     resp = _call("soma_report_outcome", dict(args, receipt=receipt))
-    assert "error" in resp and "receipt" in resp["error"]["message"].lower(), resp
+    assert resp.get("error", {}).get("message") == STALE_RECEIPT, resp
     assert not (canonical / ".soma" / "evidence" / "outcomes.jsonl").exists()
+
+
+def test_receipt_flow_works_after_cell_edited_since_creation(workspaces):
+    """BUG-035: a cell edited after creation made every receipt request fail
+    on Windows with an internal error, so no write tool could run."""
+    canonical, _ = workspaces
+    cell = canonical / ".soma" / "cells" / "vacuoles" / "cell-canonical.md"
+    time.sleep(0.05)
+    cell.write_text(cell.read_text(encoding="utf-8") + "\nedited\n", encoding="utf-8")
+    args = {"outcome": "success", "cells_used": [], "idempotency_key": "bug-035"}
+    receipt = _request_receipt("soma_report_outcome", args)
+    resp = _call("soma_report_outcome", dict(args, receipt=receipt))
+    assert "result" in resp and not resp["result"]["isError"], resp
 
 
 def test_receipt_request_rejects_paths_outside_workspace(workspaces):

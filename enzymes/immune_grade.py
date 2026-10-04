@@ -5,6 +5,7 @@ import json
 import math
 import os
 import subprocess
+import sys
 
 from soma_resolve import resolve_workspace
 from soma_sdk.cells import parse_cell_file
@@ -136,4 +137,7 @@ def main():
         print('═══════════════════════════════════════════')
 
 if __name__ == '__main__':
+    # A cp1252 stdout can't encode this script's symbols (BUG-038).
+    if hasattr(sys.stdout, 'reconfigure'):
+        sys.stdout.reconfigure(errors='replace')
     main()

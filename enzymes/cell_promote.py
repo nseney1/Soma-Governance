@@ -383,7 +383,7 @@ This rule was promoted from local cell {cand['cell_name']} after demonstrating h
                     print("Also synced to team repo")
             
             promotions.append({
-                "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
+                "timestamp": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
                 "type": "speciation",
                 "original_cell": cand['cell_name'],
                 "new_rule": rule_name,

@@ -170,7 +170,7 @@ main() {
   fi
 
   local total_files
-  total_files=$(echo "$files" | wc -l)
+  total_files=$(echo "$files" | wc -l | tr -d ' ')
   local test_count=0
 
   while IFS= read -r file; do

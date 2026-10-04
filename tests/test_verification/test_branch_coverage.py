@@ -38,7 +38,7 @@ class TestBranchCoverageContract:
         test = tmp_path / "test_target.py"
         test.write_text(textwrap.dedent(f"""\
             import sys
-            sys.path.insert(0, '{tmp_path}')
+            sys.path.insert(0, {str(tmp_path)!r})
             from target import classify
             def test_positive():
                 assert classify(5) == "positive"
@@ -72,7 +72,7 @@ class TestBranchCoverageContract:
         test = tmp_path / "test_target.py"
         test.write_text(textwrap.dedent(f"""\
             import sys
-            sys.path.insert(0, '{tmp_path}')
+            sys.path.insert(0, {str(tmp_path)!r})
             from target import classify
             def test_positive():
                 assert classify(5) == "positive"
@@ -106,7 +106,7 @@ class TestBranchCoverageContract:
         test = tmp_path / "test_target.py"
         test.write_text(textwrap.dedent(f"""\
             import sys
-            sys.path.insert(0, '{tmp_path}')
+            sys.path.insert(0, {str(tmp_path)!r})
             from target import classify
             def test_positive():
                 assert classify(5) == "positive"
@@ -140,7 +140,7 @@ class TestBranchCoverageContract:
         test = tmp_path / "test_target.py"
         test.write_text(textwrap.dedent(f"""\
             import sys
-            sys.path.insert(0, '{tmp_path}')
+            sys.path.insert(0, {str(tmp_path)!r})
             from target import process
             def test_small():
                 assert process(5) == "small"

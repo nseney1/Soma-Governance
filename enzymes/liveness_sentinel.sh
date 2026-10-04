@@ -9,6 +9,9 @@
 #   Detects stalled or deadlocked subagents that fail to report back within expected timeframes.
 #   Outputs a status report for each agent (HEALTHY / WARNING / STALLED).
 
+source "$(dirname "${BASH_SOURCE[0]}")/soma_python.sh"
+soma_resolve_python || true
+
 if [[ "$1" == "--help" || -z "$1" ]]; then
   echo "Usage: $0 --check '{\"agents\": [...]}'"
   echo "Example:"
@@ -17,7 +20,7 @@ if [[ "$1" == "--help" || -z "$1" ]]; then
 fi
 
 if [[ "$1" == "--check" && -n "$2" ]]; then
-  python3 -c "
+  soma_py -c "
 import json
 import sys
 from datetime import datetime, timezone

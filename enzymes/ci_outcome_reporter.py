@@ -214,7 +214,7 @@ def main():
     parser.add_argument(
         '--test-result',
         required=True,
-        choices=['pass', 'fail', 'success', 'failure'],
+        choices=['pass', 'fail', 'success', 'failure', 'skipped', 'cancelled'],
         help='CI test result',
     )
     parser.add_argument('--commit-sha', default=None, help='Commit SHA')
@@ -250,4 +250,7 @@ def main():
 
 
 if __name__ == '__main__':
+    # A cp1252 stdout can't encode this script's symbols (BUG-038).
+    if hasattr(sys.stdout, 'reconfigure'):
+        sys.stdout.reconfigure(errors='replace')
     main()

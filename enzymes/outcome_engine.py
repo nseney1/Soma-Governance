@@ -805,8 +805,12 @@ def update_cell_fitness(workspace, fitness_signals):
                                allow_unicode=True)
             new_content = f"---\n{new_fm}---\n{content[end+3:].lstrip()}"
 
-            with open(fpath, 'w', encoding='utf-8') as f:
+            tmp_fpath = f"{fpath}.tmp.{os.getpid()}"
+            with open(tmp_fpath, 'w', encoding='utf-8') as f:
                 f.write(new_content)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(tmp_fpath, fpath)
         except Exception as e:  # noqa: BLE001 - must not crash the session
             # Never crash the session, but never lose the signal silently either.
             print(f"    ! failed to update fitness for {fpath}: {e}", file=sys.stderr)
@@ -1003,4 +1007,7 @@ def main():
 
 
 if __name__ == '__main__':
+    # A cp1252 stdout can't encode this script's symbols (BUG-038).
+    if hasattr(sys.stdout, 'reconfigure'):
+        sys.stdout.reconfigure(errors='replace')
     main()

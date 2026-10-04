@@ -43,6 +43,14 @@ class CellInventoryError(RuntimeError):
         super().__init__(f"cell inventory {operation} failed for {self.path}: {message}")
 
 
+# On Windows os.stat() reports st_ctime as the creation time while os.fstat()
+# reports the last-change time, so a path stat and an fd stat of the same
+# unchanged file disagree once it has ever been written (BUG-035). Creation
+# time never moves on a rewrite anyway; st_ino, st_size and st_mtime_ns still
+# catch replacement and modification there.
+_COMPARE_CTIME = os.name != "nt"
+
+
 def _stat_signature(info: os.stat_result) -> Tuple[int, int, int, int, int, int]:
     return (
         info.st_dev,
@@ -50,7 +58,7 @@ def _stat_signature(info: os.stat_result) -> Tuple[int, int, int, int, int, int]
         info.st_mode,
         info.st_size,
         info.st_mtime_ns,
-        info.st_ctime_ns,
+        info.st_ctime_ns if _COMPARE_CTIME else 0,
     )
 
 
@@ -89,6 +97,9 @@ def _read_stable_file(path: str, before: os.stat_result) -> bytes:
         raise CellInventoryError("validate", path, ".md cell is not a regular file")
 
     flags = os.O_RDONLY
+    # Without O_BINARY, Windows opens in text mode: os.read() turns CRLF into
+    # LF and stops at 0x1A, so the snapshot would not be the bytes on disk.
+    flags |= getattr(os, "O_BINARY", 0)
     flags |= getattr(os, "O_CLOEXEC", 0)
     flags |= getattr(os, "O_NOFOLLOW", 0)
     try:

@@ -274,6 +274,41 @@ class TestEvidenceLock:
         assert len(_signals(tmp_path)) == 1
 
 
+def _repo_ignores(rel_path):
+    """True if the Soma checkout's ignore rules match rel_path (BUG-040)."""
+    import shutil
+    import subprocess
+    repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if shutil.which('git') is None or not os.path.exists(os.path.join(repo, '.git')):
+        pytest.skip('needs a git checkout of the repository')
+    # --no-index checks the rules even for tracked paths, so an over-broad
+    # pattern can't hide behind a file already being in the index.
+    result = subprocess.run(
+        ['git', '-C', repo, 'check-ignore', '-q', '--no-index', rel_path],
+        capture_output=True, text=True)
+    assert result.returncode in (0, 1), result.stderr
+    return result.returncode == 0
+
+
+class TestEvidenceLockIgnoredByGit:
+    """BUG-040: the lock file evidence_lock() leaves behind must not show up as untracked."""
+
+    def test_lock_file_is_ignored(self, tmp_path):
+        from soma_sdk.telemetry import evidence_lock
+        with evidence_lock(str(tmp_path)) as lock_path:
+            rel = os.path.relpath(lock_path, str(tmp_path)).replace(os.sep, '/')
+        assert _repo_ignores(rel), f'{rel} is not git-ignored'
+
+    @pytest.mark.parametrize('rel', [
+        '.soma/evidence/outcomes.jsonl',
+        '.soma/evidence/README.md',
+        '.soma/evidence/arbitration_cycle_2.json',
+        '.soma/evidence/.fitness.lock',
+    ])
+    def test_tracked_evidence_is_not_ignored(self, rel):
+        assert not _repo_ignores(rel), f'{rel} must stay committable'
+
+
 class TestGenerationFence:
 
     def test_default_generation_is_one(self, tmp_path):

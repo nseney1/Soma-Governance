@@ -218,3 +218,26 @@ class TestMarkdownReport:
         md = report['summary']
         assert 'Soma CI Outcome Report' in md
         assert 'Cells matched' in md or '0' in md
+
+    def test_cli_main_supports_skipped_and_cancelled(self, tmp_path, monkeypatch):
+        """CLI main parser accepts skipped and cancelled outcomes without crashing."""
+        from ci_outcome_reporter import main
+
+        cells_dir = tmp_path / '.soma' / 'cells'
+        _make_cell(str(cells_dir), 'cell-x', ['src/*'])
+
+        for outcome in ['skipped', 'cancelled']:
+            monkeypatch.setattr(
+                'sys.argv',
+                [
+                    'ci_outcome_reporter.py',
+                    '--changed-files',
+                    'src/main.py',
+                    '--test-result',
+                    outcome,
+                    '--workspace',
+                    str(tmp_path),
+                ],
+            )
+            main()
+

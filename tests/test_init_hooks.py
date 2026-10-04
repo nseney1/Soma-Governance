@@ -39,6 +39,7 @@ class TestInstallHookFunction:
         hook_file = git_dir / "pre-commit"
         assert hook_file.exists(), "pre-commit hook must be created"
 
+    @pytest.mark.skipif(os.name == "nt", reason="Windows has no POSIX execute bit")
     def test_install_hook_is_executable(self, tmp_path):
         """Installed hook file must have executable permission."""
         from soma_cli.init import install_hook

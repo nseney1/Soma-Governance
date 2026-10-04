@@ -153,19 +153,20 @@
     {
       "id": "BUG-010",
       "issue_url": "https://github.com/nseney1/Soma-Governance/issues/47",
-      "status": "open",
-      "title": "Windows Git Bash python3 stub and lifecycle isolation require native verification",
+      "status": "fixed",
+      "title": "Windows: installer tests wrote to the real user profile",
       "discovered_in": "v0.52.0",
+      "fixed_in": "Unreleased",
       "root_cause": "path_error",
       "severity": "critical",
-      "description": "Running pytest on Windows (Git Bash) rewrote ~/.claude/CLAUDE.md, created ~/.kiro (128 files), and overwrote ~/.soma/manifest.json and ~/.soma/backup in the real profile. Likely cause, not confirmed: install.sh resolves RESOLVED_HOME to the real profile instead of the test's temporary HOME. Knock-on: 10 test_install_lifecycle and 5 test_status failures. Not re-run on v0.88.2, because re-running would modify the real profile again. Related, confirmed on Windows: a python.org install has no python3.exe, so in Git Bash `python3` resolves to the App Installer stub. `command -v python3` succeeds, but running it exits 49 with no output. enzymes/common.sh install_hooks() therefore renders an empty hooks.json and skips hooks, and the other python3 calls in install/ and enzymes/*.sh fail. This does not cause the missing manifest: install_hooks runs inside an `if`, so set -e doesn't abort. The patched test helpers now set both HOME and USERPROFILE, and generated MCP configs probe importability, but native Windows/Git Bash execution has not been rerun and hook scripts still assume a usable python3 command. Keep open until native lifecycle tests pass without profile writes.",
+      "description": "Running pytest on Windows rewrote ~/.claude/CLAUDE.md, created ~/.kiro (128 files), and overwrote ~/.soma/manifest.json and ~/.soma/backup in the real profile. Cause, confirmed: under Git Bash enzymes/common.sh resolve_home() prefers USERPROFILE over HOME, and six install/uninstall calls in tests/test_install_lifecycle.py overrode only HOME, so install.sh and uninstall.sh ran against the real Windows profile. The shared tests/conftest.py run() helper now sets USERPROFILE to HOME whenever a caller overrides HOME alone. Verified on Windows 11 with HOME and USERPROFILE pointed at a scratch directory around the whole suite: before the fix the lifecycle tests wrote .claude/CLAUDE.md, .soma/manifest.json and backups into it; after, it stays empty and the real profile is unchanged. Five lifecycle tests still fail on Windows because of BUG-036 (#62). The Git Bash python3 stub, previously tracked here, is now BUG-037.",
       "affected_files": [
-        "install/install.sh",
-        "tests/test_install_lifecycle.py",
-        "tests/test_status.py",
-        "enzymes/common.sh"
+        "tests/conftest.py",
+        "tests/test_install_lifecycle.py"
       ],
-      "pattern": "Test isolation relies on HOME overrides that the code under test does not honor"
+      "regression_test": "tests/test_home_isolation.py::test_home_only_override_isolates_installer_home",
+      "pattern": "Test isolation relies on HOME overrides that the code under test does not honor",
+      "changelog_ref": "Unreleased"
     },
     {
       "id": "BUG-011",
@@ -190,38 +191,52 @@
     {
       "id": "BUG-012",
       "issue_url": "https://github.com/nseney1/Soma-Governance/issues/49",
-      "status": "open",
-      "title": "Implicit cp1252 encoding on Windows: `soma status` crash, list_cells garbles or silently drops cells",
+      "status": "fixed",
+      "title": "Implicit cp1252 encoding on Windows: `soma status` crash, list_cells garbled or dropped cells",
       "discovered_in": "v0.88.2",
+      "fixed_in": "Unreleased",
       "root_cause": "platform_compat",
       "severity": "moderate",
-      "description": "soma status prints emoji to a cp1252 console and crashes with UnicodeEncodeError unless PYTHONIOENCODING=utf-8. soma_sdk/governance.py:89 calls read_text() with no encoding, so non-ASCII text comes back garbled. Inside `except Exception: pass` (line 95), any cell containing a byte cp1252 can't decode is silently dropped. Several tests in tests/test_rule_metadata.py also read files without an encoding (seen on v0.52). The pre-release review moved SDK/MCP cell listing to an explicit UTF-8 canonical inventory with visible diagnostics, fixing the silent-drop portion. The cp1252 console behavior of soma status remains open pending native Windows verification.",
+      "description": "With stdout on cp1252 (Windows, redirected output), `soma status` printed an emoji, raised UnicodeEncodeError and exited 1; enzymes/verify_bug_registry.py crashed the same way when printing its error report. Both entry points now reconfigure stdout with errors='replace', so unencodable characters print as '?'. The list_cells half (bare read_text() inside `except Exception: pass`, which garbled non-ASCII text and dropped undecodable cells) was fixed in the v0.89.0 pre-release review by the explicit UTF-8 canonical inventory; verified on Windows with a cp1252 locale and a cell containing curly quotes, an em-dash, an emoji and '\u00d0' (byte 0x90). tests/test_rule_metadata.py read rule files with bare read_text() and failed 6 cases on genome/subagent-delegation.md; it now reads UTF-8 explicitly.",
       "affected_files": [
-        "soma_cli/status.py",
+        "soma_cli/cli.py",
+        "enzymes/verify_bug_registry.py",
         "soma_sdk/governance.py",
         "tests/test_rule_metadata.py"
       ],
-      "pattern": "Relying on the platform default encoding instead of an explicit utf-8"
+      "regression_test": "tests/test_cli.py::TestNonUtf8Console::test_status_survives_cp1252_stdout",
+      "pattern": "Relying on the platform default encoding instead of an explicit utf-8",
+      "changelog_ref": "Unreleased"
     },
     {
       "id": "BUG-013",
       "issue_url": "https://github.com/nseney1/Soma-Governance/issues/50",
-      "status": "open",
-      "title": "Windows-only test failures: path-separator assertions and verification contract tests",
+      "status": "fixed",
+      "title": "Windows-only test failures: unescaped paths, separators, CRLF, bash and symlink assumptions",
       "discovered_in": "v0.52.0",
+      "fixed_in": "Unreleased",
       "root_cause": "platform_compat",
       "severity": "low",
-      "description": "3 tests in tests/test_init.py compare str(WindowsPath) against POSIX separators. test_mutation_tester::test_catches_tautological_test reports 0/2 survived on Windows, and 2 test_branch_coverage contract tests fail; cause not diagnosed. Not re-run on v0.88.2 because of BUG-010.",
+      "description": "Test-only Windows failures, all fixed in the tests: (1) test_branch_coverage.py and test_mutation_tester.py wrote `sys.path.insert(0, '{tmp_path}')` into generated test files; a Windows path contains `\\U`, so the file failed with a unicodeescape SyntaxError. They now use `{str(tmp_path)!r}`. (2) test_init.py compared str(WindowsPath) against POSIX separators; it now compares Path.parts. test_packaging_install_correctness.py compared the C:/... paths written under Git Bash against backslash paths; it now normalizes both. (3) test_enforce_hooks.py wrote the bash hook in text mode (CRLF, locale encoding) and test_outcome_engine_insights.py wrote JSONL with CRLF while asserting a byte offset; both now write UTF-8 with LF. (4) The conftest `bash` fixture returned None when bash was missing, and test_uninstall_confinement.py and test_v089_review_followups.py hard-coded /bin/bash (WinError 2); a conftest require_bash() helper now resolves bash or skips. (5) Symlink tests skip when symlinks need a privilege (WinError 1314), and the POSIX execute-bit test skips on Windows. Verified on Windows 11 / Python 3.14: the full suite went from 49 to 12 failures, all BUG-036 or BUG-038. Note: with coverage missing from the environment, branch_coverage fails closed (lines [-1]); coverage is a declared dev dependency.",
       "affected_files": [
-        "tests/test_init.py",
+        "tests/conftest.py",
+        "tests/test_verification/test_branch_coverage.py",
         "tests/test_verification/test_mutation_tester.py",
-        "tests/test_verification/test_branch_coverage.py"
+        "tests/test_init.py",
+        "tests/test_init_hooks.py",
+        "tests/test_enforce_hooks.py",
+        "tests/test_outcome_engine_insights.py",
+        "tests/test_packaging_install_correctness.py",
+        "tests/test_uninstall_confinement.py",
+        "tests/test_v089_review_followups.py"
       ],
-      "pattern": "Tests assert on OS-specific string forms"
+      "regression_test": "tests/test_verification/test_branch_coverage.py::TestBranchCoverageContract::test_dead_branch_detected",
+      "pattern": "Tests assert on OS-specific string forms",
+      "changelog_ref": "Unreleased"
     },
     {
       "id": "BUG-014",
-      "issue_url": "https://github.com/nseney1/Soma-Governance/issues/48",
+      "issue_url": "https://github.com/nseney1/Soma-Governance/issues/59",
       "status": "open",
       "title": "PowerShell installer writes mojibake into generated rule files",
       "discovered_in": "v0.51.0",
@@ -235,6 +250,7 @@
     },
     {
       "id": "BUG-015",
+      "issue_url": "https://github.com/nseney1/Soma-Governance/issues/57",
       "status": "fixed",
       "title": "`soma checkpoint` / `soma sync` wipe cell fitness on a fresh clone (triggers\u21920, score\u2192null)",
       "discovered_in": "v0.88.2",
@@ -566,6 +582,300 @@
         ".github/workflows/validate.yml"
       ],
       "pattern": "Cross-platform support claimed while one platform omits a lifecycle subsystem"
+    },
+    {
+      "id": "BUG-033",
+      "issue_url": "https://github.com/nseney1/Soma-Governance/issues/55",
+      "status": "fixed",
+      "title": "`soma status` reports the wrong core-rule count for installer-based Claude setups",
+      "discovered_in": "v0.88.2",
+      "fixed_in": "Unreleased",
+      "root_cause": "path_error",
+      "severity": "low",
+      "description": "install.sh/install.ps1 merge all rules into ~/.claude/CLAUDE.md, but soma_cli/status.py globs the rules directory for *.md excluding CLAUDE.md, and with no loose files it falls back to the package's own genome/. Reproduced on v0.89.0 with an isolated HOME: a 1-rule CLAUDE.md reports '19 active' (the genome/ count); the same CLAUDE.md plus 2 loose .md files reports '2 active'. Fixed: status now parses the Soma sections of CLAUDE.md in both formats that write it (the installers' '# Soma Governance Rules' header with '---' + H1 per rule, and soma init's SOMA:START/END block with '## <stem>' sections), adds loose rule files, drops merged sections that duplicate a loose file by stem, frontmatter id or H1, and no longer falls back to genome/ when CLAUDE.md holds Soma content. Merged installer sections are named by mapping their H1 back to the packaged rule id, so trigger counts still match.",
+      "affected_files": [
+        "soma_cli/status.py"
+      ],
+      "regression_test": "tests/test_status_claude_md.py",
+      "pattern": "Status reads a different artifact than the installer writes",
+      "changelog_ref": "Unreleased"
+    },
+    {
+      "id": "BUG-034",
+      "issue_url": "https://github.com/nseney1/Soma-Governance/issues/54",
+      "status": "fixed",
+      "title": "mutation_tester fails open: unrunnable tests count as killing every mutant",
+      "discovered_in": "v0.88.2",
+      "fixed_in": "Unreleased",
+      "root_cause": "silent_failure",
+      "severity": "critical",
+      "description": "check() never runs the tests against the unmutated source first, and _run_tests() treats any non-zero pytest exit (collection error, import error, timeout, exception) as a killed mutant. Reproduced on v0.89.0: for `add(a, b)` with a test file containing a syntax error, check() returns verdict=True, '0/2 survived'. The verdict feeds the arbiter's TAUTOLOGICAL_TEST signal, so broken tests are rated as strong. It also masks BUG-013 on Windows. Fixed: check() now runs the tests against the unmutated source first; if they fail it returns verdict=False, lines=[-1] and a 'Baseline tests fail' detail, matching branch_coverage's fail-closed convention. A mutant that times out or errors after a passing baseline still counts as killed.",
+      "affected_files": [
+        "immune_system/verification/mutation_tester.py"
+      ],
+      "regression_test": "tests/test_verification/test_mutation_tester.py::TestMutationTesterFailsClosed::test_unrunnable_test_file_fails_closed",
+      "pattern": "Verifier treats 'could not run' as 'passed' (fail-open)",
+      "changelog_ref": "Unreleased"
+    },
+    {
+      "id": "BUG-035",
+      "issue_url": "https://github.com/nseney1/Soma-Governance/issues/61",
+      "status": "fixed",
+      "title": "Windows: cell inventory rejected edited cells, breaking soma_scan, list_cells and every receipt",
+      "discovered_in": "v0.89.0",
+      "fixed_in": "Unreleased",
+      "root_cause": "platform_compat",
+      "severity": "critical",
+      "description": "_read_stable_file() compared an os.stat(path) signature against os.fstat(fd), and the signature included st_ctime_ns. On Windows os.stat reports st_ctime as the creation time and os.fstat as the last-change time, so any cell written after creation raised CellInventoryError 'file changed before it was opened'. soma_scan and soma_list_cells failed and soma_request_receipt returned 'Internal error', so no write or execute MCP tool could run on Windows. The same function opened cells without O_BINARY, so Windows text mode turned CRLF into LF and the snapshot bytes differed from disk. st_ctime_ns is now left out of the signature on Windows (st_ino, st_size and st_mtime_ns still detect changes), and cells are opened with O_BINARY.",
+      "affected_files": [
+        "soma_core/cell_inventory.py"
+      ],
+      "regression_test": "tests/test_mcp_receipt_binding.py::test_receipt_flow_works_after_cell_edited_since_creation",
+      "pattern": "Stat signatures compared across os.stat and os.fstat assume both report the same timestamps",
+      "changelog_ref": "Unreleased"
+    },
+    {
+      "id": "BUG-036",
+      "issue_url": "https://github.com/nseney1/Soma-Governance/issues/62",
+      "status": "fixed",
+      "title": "uninstall.sh under Git Bash rejects every path as 'not an absolute path'",
+      "discovered_in": "v0.89.0",
+      "fixed_in": "Unreleased",
+      "root_cause": "platform_compat",
+      "severity": "moderate",
+      "description": "Under Git Bash, resolve_home returns `cygpath -u \"$USERPROFILE\"`, so RESOLVED_HOME, the allowed roots and every removal-plan entry are MSYS paths (/c/Users/..., /tmp/...). uninstall.sh's embedded Python check() runs in native Windows Python, where os.path.isabs() rejects them, so uninstall refuses every entry and removes nothing (fails closed). Git for Windows ships no Python, so python3 there is normally a native build. On Windows this fails the BUG-031 regression tests and five tests in tests/test_install_lifecycle.py. (Corrected when fixed: an earlier version of this entry said the refusal tests in tests/test_uninstall_confinement.py passed on Windows only because every entry was refused. Hostile native-form manifests were in fact already refused with their specific reasons at manifest validation; it was the later removal-plan check, fed MSYS paths on stdin, that refused everything.) Fixed in uninstall.sh's confinement check: MSYS-form paths are mapped with cygpath after the ./.. segment check (cygpath folds ..); the shell resolves cygpath from PATH and passes its absolute path, because a bare name in native Windows Python also searches the current directory (the project being uninstalled). Fixing it exposed three more defects, also fixed: read_manifest_field wrote CRLF in the console code page, so every entry but the last and non-ASCII names silently dropped out of the plan; an entry it could not encode (a lone surrogate) ended the list early, after which uninstall exited 0 and deleted the manifest; and a refusal could crash while printing its own path. Hardening found while investigating: on Windows the check now refuses segments ending in a space or dot and ':' stream syntax, which Win32 resolves to a different name than the one checked. A sandbox probe of 15 such shapes found none that made uninstall.sh (or uninstall.ps1 under Windows PowerShell 5.1) delete anything outside the roots, because rm takes the name literally; PowerShell 7 was not tested.",
+      "affected_files": [
+        "install/uninstall.sh",
+        "enzymes/common.sh"
+      ],
+      "regression_test": "tests/test_uninstall_confinement.py::test_msys_form_plan_entries_inside_roots_are_accepted",
+      "pattern": "POSIX-form paths handed to a native Windows interpreter",
+      "changelog_ref": "Unreleased"
+    },
+    {
+      "id": "BUG-037",
+      "issue_url": "https://github.com/nseney1/Soma-Governance/issues/64",
+      "status": "fixed",
+      "title": "Git Bash: python3 can resolve to the Windows Store stub, so hooks and shell-script Python calls fail",
+      "discovered_in": "v0.88.2",
+      "root_cause": "platform_compat",
+      "severity": "moderate",
+      "description": "A python.org install provides python.exe but no python3.exe, so in Git Bash `python3` resolves to the App Installer stub. `command -v python3` succeeds, but running it exits 49 with no output. enzymes/common.sh install_hooks() therefore renders an empty hooks.json and skips hooks, and the other python3 calls in install/ and enzymes/*.sh fail the same way. Workaround: disable the python3 App execution alias and put a real python3 on PATH. Split out of BUG-010 when its home-isolation half was fixed. Suggested fix: resolve one working interpreter (python3, python, py -3), accepting a candidate only if it runs `-c 'import sys'`, and use it everywhere.",
+      "affected_files": [
+        "enzymes/common.sh",
+        "install/install.sh",
+        "install/uninstall.sh"
+      ],
+      "pattern": "Interpreter presence checked with command -v instead of by running it",
+      "fixed_in": "Unreleased",
+      "regression_test": "tests/test_python_resolution.py",
+      "changelog_ref": "Unreleased"
+    },
+    {
+      "id": "BUG-038",
+      "issue_url": "https://github.com/nseney1/Soma-Governance/issues/65",
+      "status": "fixed",
+      "title": "Windows: enzyme scripts crash on a cp1252 stdout when printing non-ASCII",
+      "discovered_in": "v0.89.0",
+      "fixed_in": "Unreleased",
+      "root_cause": "platform_compat",
+      "severity": "moderate",
+      "description": "Nineteen standalone enzyme scripts and immune_system/verification/runner.py print emoji, arrows or other non-ASCII characters from their __main__ entry points without reconfiguring stdout. With stdout on cp1252 (Windows, redirected or captured, including hook runs under Git Bash) they raise UnicodeEncodeError and exit 1. Seen on Windows in tests/test_crossover_structured.py: enzymes/cell_crossover.py fails at its 'Crossover: a x b -> c' line (U+2192). Same class as BUG-012, which fixed the `soma` CLI and verify_bug_registry.py only. (Corrected when fixed: a wider scan found nine more __main__ scripts with non-ASCII output literals; three of them (cell_fitness, cell_adversarial, immune_entropy) were confirmed to crash with no arguments; cell_fitness is run by Governance.fitness_landscape and session_close.sh.) Fixed: all 29 entry points reconfigure stdout with errors='replace' as the first statement of their __main__ block, the same guard as BUG-012, so modules imported by soma_cli and soma_mcp leave the caller's stdout alone. tests/test_enzyme_console_encoding.py runs 12 of them under PYTHONIOENCODING=cp1252 against a UTF-8 run, and a structural test requires the guard in every __main__ script with a non-ASCII string literal outside a docstring.",
+      "affected_files": [
+        "enzymes/cell_adversarial.py",
+        "enzymes/cell_coverage.py",
+        "enzymes/cell_create_nl.py",
+        "enzymes/cell_crossover.py",
+        "enzymes/cell_deps.py",
+        "enzymes/cell_enforce.py",
+        "enzymes/cell_escaped_defects.py",
+        "enzymes/cell_expiry.py",
+        "enzymes/cell_fitness.py",
+        "enzymes/cell_genesis_stochastic.py",
+        "enzymes/cell_quorum.py",
+        "enzymes/ci_outcome_reporter.py",
+        "enzymes/diagnose_hot_zones.py",
+        "enzymes/hgt_ribosome.py",
+        "enzymes/immune_entropy.py",
+        "enzymes/immune_grade.py",
+        "enzymes/immune_replay.py",
+        "enzymes/immune_trends.py",
+        "enzymes/oracle_checkpoint.py",
+        "enzymes/outcome_engine.py",
+        "enzymes/resilience_engine.py",
+        "enzymes/soma_coherence.py",
+        "enzymes/soma_interoception.py",
+        "enzymes/soma_sleep.py",
+        "enzymes/ttc_verifier.py",
+        "enzymes/verify_readme_claims.py",
+        "immune_system/verification/call_graph.py",
+        "immune_system/verification/persistence_checker.py",
+        "immune_system/verification/runner.py"
+      ],
+      "regression_test": "tests/test_enzyme_console_encoding.py::test_every_entry_point_with_non_ascii_output_guards_stdout",
+      "pattern": "Relying on the platform default encoding instead of an explicit utf-8",
+      "changelog_ref": "Unreleased"
+    },
+    {
+      "id": "BUG-039",
+      "issue_url": "https://github.com/nseney1/Soma-Governance/issues/66",
+      "status": "fixed",
+      "title": "mutation_tester counted comparison, boolean, statement and return mutations but never applied them",
+      "discovered_in": "v0.89.0",
+      "fixed_in": "Unreleased",
+      "root_cause": "silent_failure",
+      "severity": "critical",
+      "description": "_apply_mutation_by_index() first built a target list holding only binary-operator, unary-operator and constant mutations and returned None when the index was past it. _collect_mutations() also collects comparison, and/or, statement-deletion and return-value mutations, so those were counted in the total but skipped by check(): neither killed nor survived. A test that never checks a comparison passed: `def eq(a, b): return a == b` with a test that calls eq(1, 2) without asserting got verdict=True, '0/2 survived'. The incomplete first pass is removed; the complete, order-matched target list now decides every mutation. Applying every kind exposed two equivalent mutants that no test can kill (deleting a docstring, and `return None` -> `return None`); both are no longer generated. Found by the independent review of BUG-034.",
+      "affected_files": [
+        "immune_system/verification/mutation_tester.py"
+      ],
+      "regression_test": "tests/test_verification/test_mutation_tester.py::TestMutationTesterAppliesEveryCollectedMutation::test_unchecked_comparison_survives",
+      "pattern": "Collected mutations silently skipped instead of being evaluated",
+      "changelog_ref": "Unreleased"
+    },
+    {
+      "id": "BUG-040",
+      "issue_url": "https://github.com/nseney1/Soma-Governance/issues/70",
+      "status": "fixed",
+      "title": "Recording an outcome leaves .soma/evidence/.signals.lock as an untracked file",
+      "discovered_in": "v0.89.0",
+      "fixed_in": "Unreleased",
+      "root_cause": "path_error",
+      "severity": "low",
+      "description": "soma_sdk.telemetry.evidence_lock() creates .soma/evidence/.signals.lock (open with 'a+b') the first time any signal is appended, including a soma_report_outcome call that records nothing (cells_used=[]). Neither the root .gitignore nor .soma/evidence/.gitignore covers it, so after one MCP outcome report the repository has an untracked .soma/evidence/.signals.lock, which `git add -A` would commit. Seen live on 2026-10-02 during the BUG-009/BUG-035 receipt check through the MCP server; not Windows-specific. Related: .soma/evidence/.fitness.lock is a committed, empty file that no current code creates or reads. Fixed by adding .signals.lock to .soma/evidence/.gitignore; the lock file itself is kept, since deleting it after use could race with another process taking the lock. This covers the Soma repository only: soma init writes no .soma/evidence/.gitignore into other workspaces, and that is unchanged.",
+      "affected_files": [
+        "soma_sdk/telemetry.py",
+        ".soma/evidence/.gitignore"
+      ],
+      "regression_test": "tests/test_telemetry.py::TestEvidenceLockIgnoredByGit::test_lock_file_is_ignored",
+      "pattern": "Runtime lock file written inside the working tree without an ignore rule",
+      "changelog_ref": "Unreleased"
+    },
+    {
+      "id": "BUG-041",
+      "issue_url": null,
+      "status": "fixed",
+      "title": "soma CLI not found under zsh after pip install --user, with no guidance",
+      "discovered_in": "v0.89.0",
+      "fixed_in": "Unreleased",
+      "root_cause": "platform_compat",
+      "severity": "moderate",
+      "description": "pip install --user puts the soma console script in the user scripts directory (~/.local/bin on Linux). Debian/Ubuntu add it to PATH only in ~/.profile, which zsh does not read, so on a stock oh-my-zsh setup `soma` is 'command not found'. Seen on 2026-10-03. Nothing said why: the Makefile discarded pip's stderr (hiding pip's own not-on-PATH warning) and its PATH check was a substring grep for $HOME/.local/bin, wrong for venvs, macOS and Windows; soma doctor reported the failure without a remedy; `python3 -m soma_cli` did not work; and the docs never mentioned PATH. Fixed with soma_cli/pathcheck.py, which finds the directory pip used (sysconfig scripts paths), checks exact PATH entries, detects zsh/bash/fish/PowerShell and prints the one line to add and the rc file it belongs in. It never edits dotfiles. soma doctor, the end of install.sh and install.ps1 print it; the Makefile now uses python3 -m pip and shows pip's errors only when every install attempt fails. Also added soma_cli/__main__.py and soma --version, and a troubleshooting section in QUICKSTART.md. MCP was not affected: its config launches python3 -m soma_mcp.",
+      "affected_files": [
+        "soma_cli/pathcheck.py",
+        "soma_cli/doctor.py",
+        "soma_cli/cli.py",
+        "soma_cli/__main__.py",
+        "install/install.sh",
+        "install/install.ps1",
+        "Makefile",
+        "QUICKSTART.md",
+        "README.md"
+      ],
+      "regression_test": "tests/test_pathcheck.py",
+      "pattern": "Installer assumes the user's shell reads the same startup file as bash",
+      "changelog_ref": "Unreleased"
+    },
+    {
+      "id": "BUG-042",
+      "status": "fixed",
+      "title": "immune_sweep.sh aborts with 'RESOLVED_HOME: unbound variable' unless SOMA_DATA_DIR is exported",
+      "discovered_in": "v0.89.0",
+      "fixed_in": "Unreleased",
+      "root_cause": "path_error",
+      "severity": "low",
+      "description": "enzymes/immune_sweep.sh defaults SOMA_DATA_DIR to $RESOLVED_HOME/.gemini/antigravity, but nothing in the script set RESOLVED_HOME. It runs under set -euo pipefail, so with SOMA_DATA_DIR unset the sweep exited 1 at line 28 before doing any work. Fixed: RESOLVED_HOME is set from common.sh's resolve_home.",
+      "affected_files": [
+        "enzymes/immune_sweep.sh"
+      ],
+      "regression_test": "tests/test_v090_hardening.py::test_immune_sweep_runs_without_soma_data_dir",
+      "pattern": "Variable read under set -u that no code path assigns",
+      "changelog_ref": "Unreleased"
+    },
+    {
+      "id": "BUG-043",
+      "status": "fixed",
+      "title": "uninstall.sh without a working Python 3 fell back to a symlink-blind lexical confinement check",
+      "discovered_in": "v0.89.0",
+      "fixed_in": "Unreleased",
+      "root_cause": "silent_failure",
+      "severity": "moderate",
+      "description": "install/uninstall.sh check_confined() used _lexical_confined whenever no working Python 3 was found. Fixed: without a working interpreter check_confined() refuses every target, and non-empty plan is refused before anything is touched.",
+      "affected_files": [
+        "install/uninstall.sh"
+      ],
+      "regression_test": "tests/test_v090_hardening.py::test_manifestless_uninstall_without_python_removes_nothing",
+      "pattern": "Security check degrades to a weaker fallback instead of failing closed",
+      "changelog_ref": "Unreleased"
+    },
+    {
+      "id": "BUG-044",
+      "status": "fixed",
+      "title": "Inline Python in enzymes, install.sh and uninstall.sh imported modules from the current directory",
+      "discovered_in": "v0.89.0",
+      "fixed_in": "Unreleased",
+      "root_cause": "path_error",
+      "severity": "critical",
+      "description": "python -c CODE and python - <<heredoc put current directory at sys.path[0]. Fixed: soma_py strips CWD entry from sys.path[0] for inline code while preserving user site-packages.",
+      "affected_files": [
+        "enzymes/soma_python.sh",
+        "enzymes/session_close.sh",
+        "install/install.sh",
+        "install/uninstall.sh"
+      ],
+      "regression_test": "tests/test_redteam_followups.py::test_install_and_uninstall_ignore_cwd_modules",
+      "pattern": "Inline interpreter code run with the current directory on the import path",
+      "changelog_ref": "Unreleased"
+    },
+    {
+      "id": "BUG-045",
+      "status": "fixed",
+      "title": "uninstall.sh rewrote Claude settings.json outside the confinement guard, plan preview and --dry-run",
+      "discovered_in": "v0.89.0",
+      "fixed_in": "Unreleased",
+      "root_cause": "path_error",
+      "severity": "moderate",
+      "description": "The settings.json cleanup at the end of uninstall.sh ran jq del(.hooks.soma) without guard_sink/check_confined or plan preview. Fixed: settings files carrying hooks.soma are queued during planning, previewed as [MOD], and confined.",
+      "affected_files": [
+        "install/uninstall.sh"
+      ],
+      "regression_test": "tests/test_redteam_followups.py::test_settings_cleanup_refuses_symlinked_claude_dir",
+      "pattern": "File rewrite that bypasses the path confinement guard",
+      "changelog_ref": "Unreleased"
+    },
+    {
+      "id": "BUG-046",
+      "status": "fixed",
+      "title": "enzymes/verify_bug_registry.py timed out on clean Windows installation (#80)",
+      "discovered_in": "v0.89.0",
+      "fixed_in": "Unreleased",
+      "root_cause": "platform_compat",
+      "severity": "low",
+      "description": "Fixed 30s budget for running all bug regression tests was exceeded on Windows. Fixed by dynamic budget math based on number of regression test cases and node matching by pytest summary IDs.",
+      "affected_files": [
+        "enzymes/verify_bug_registry.py",
+        "tests/test_bug_registry.py"
+      ],
+      "regression_test": "tests/test_bug_registry.py::TestRegressionRunBudget::test_budget_grows_with_the_registry",
+      "pattern": "Fixed timeout budget for growing test suite",
+      "changelog_ref": "Unreleased"
+    },
+    {
+      "id": "BUG-047",
+      "status": "fixed",
+      "title": "soma init pre-commit hook aborted every commit with 'soma: not found' when soma was not on the hook's PATH",
+      "discovered_in": "v0.89.0",
+      "fixed_in": "Unreleased",
+      "root_cause": "path_error",
+      "severity": "moderate",
+      "description": "The marked block install_hook() writes into .git/hooks/pre-commit ran a bare `soma checkpoint --pre-commit`. Git runs hooks with the PATH of the process that started it, so in zsh or other non-login shells after `pip install --user` (BUG-041), GUI git clients and IDEs, `soma` did not resolve and git aborted the commit with only `soma: not found`. Re-running `soma init` could not repair it, because install_hook() returned early once the marker was present. Fixed: the block (POSIX sh) runs `soma` when it is on PATH, otherwise the interpreter that ran `soma init` (sys.executable, shell-quoted) with `-m soma_cli checkpoint --pre-commit` after checking it can import soma_cli; with neither it prints a message naming `soma doctor` and the PATH fix and exits 1 (still fail-closed). A checkpoint failure now exits the hook explicitly instead of depending on the block being last. Re-running `soma init` replaces an existing marked block in place, keeping user lines outside the markers, and `soma doctor` reports a block without the `soma-hook-format: 2` marker as stale.",
+      "affected_files": [
+        "soma_cli/init.py",
+        "soma_cli/doctor.py"
+      ],
+      "regression_test": "tests/test_precommit_hook_fallback.py::test_falls_back_to_init_interpreter_when_soma_not_on_path",
+      "pattern": "Hook or generated script that depends on the interactive shell's PATH",
+      "changelog_ref": "Unreleased"
     }
   ]
 }

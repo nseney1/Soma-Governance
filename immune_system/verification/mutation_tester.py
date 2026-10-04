@@ -58,6 +58,22 @@ class _Mutation:
         self.apply = apply  # callable(tree) -> mutated tree
 
 
+def _is_deletable_stmt(node: ast.AST) -> bool:
+    # A docstring is an Expr too, but deleting it changes nothing a test can
+    # observe: an equivalent mutant that would always "survive".
+    if not isinstance(node, (ast.Assign, ast.AugAssign, ast.Expr)):
+        return False
+    return not (isinstance(node, ast.Expr) and isinstance(node.value, ast.Constant)
+                and isinstance(node.value.value, str))
+
+
+def _is_mutable_return(node: ast.AST) -> bool:
+    # `return None` -> `return None` is not a mutation.
+    if not isinstance(node, ast.Return) or node.value is None:
+        return False
+    return not (isinstance(node.value, ast.Constant) and node.value.value is None)
+
+
 def _collect_mutations(source: str, function_name: str) -> list[_Mutation]:
     """Walk the AST of *function_name* and collect all possible mutations."""
     tree = ast.parse(source)
@@ -99,12 +115,12 @@ def _collect_mutations(source: str, function_name: str) -> list[_Mutation]:
 
     # 6) Statement deletion (replace with pass) — one per non-trivial stmt
     for node in ast.walk(func_node):
-        if isinstance(node, (ast.Assign, ast.AugAssign, ast.Expr)):
+        if _is_deletable_stmt(node):
             mutations.append(_Mutation(node.lineno, None))
 
     # 7) Return value mutation (return X → return None)
     for node in ast.walk(func_node):
-        if isinstance(node, ast.Return) and node.value is not None:
+        if _is_mutable_return(node):
             mutations.append(_Mutation(node.lineno, None))
 
     return mutations
@@ -114,42 +130,9 @@ def _apply_mutation_by_index(
     source: str, function_name: str, mutation_index: int
 ) -> Optional[str]:
     """Apply the i-th mutation to *source* and return the mutated source."""
-    tree = ast.parse(source)
-    func_node: Optional[ast.FunctionDef] = None
-    for node in ast.walk(tree):
-        if isinstance(node, ast.FunctionDef) and node.name == function_name:
-            func_node = node
-            break
-    if func_node is None:
-        return None
-
-    # Rebuild mutation list in the same order as _collect_mutations
-    targets: list[ast.AST] = []
-    kinds: list[str] = []
-
-    for node in ast.walk(func_node):
-        if isinstance(node, ast.BinOp) and type(node.op) in _BINOP_SWAPS:
-            targets.append(node)
-            kinds.append("binop")
-        if isinstance(node, ast.UnaryOp) and type(node.op) in _UNARYOP_SWAPS:
-            targets.append(node)
-            kinds.append("unaryop")
-        if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
-            if node.value != 0:
-                targets.append(node)
-                kinds.append("const")
-
-    if mutation_index >= len(targets):
-        return None
-
-    target_node = targets[mutation_index]
-    kind = kinds[mutation_index]
-
-    # Deep-copy the tree and find the corresponding node by matching lineno + col_offset + kind
     tree2 = ast.parse(source)
 
-
-    # Collect mutation targets on tree2 in the exact same order
+    # Collect mutation targets in the exact order of _collect_mutations
     targets2: list[ast.AST] = []
     kinds2: list[str] = []
     func_node2: Optional[ast.FunctionDef] = None
@@ -183,13 +166,13 @@ def _apply_mutation_by_index(
 
     # Statement deletion targets
     for node in ast.walk(func_node2):
-        if isinstance(node, (ast.Assign, ast.AugAssign, ast.Expr)):
+        if _is_deletable_stmt(node):
             targets2.append(node)
             kinds2.append("stmt_del")
 
     # Return value mutation targets
     for node in ast.walk(func_node2):
-        if isinstance(node, ast.Return) and node.value is not None:
+        if _is_mutable_return(node):
             targets2.append(node)
             kinds2.append("return_val")
 
@@ -272,6 +255,18 @@ def check(
 
     total = len(mutations)
     survived: list[int] = []
+
+    # A mutant counts as killed whenever the tests fail, so tests that can't
+    # pass against the original code (syntax/import error, wrong assertion)
+    # would "kill" every mutant and pass (BUG-034). Fail closed instead.
+    if mutations and not _run_tests(test_file):
+        return ToolEvidence(
+            tool="mutation_tester",
+            target=f"{target_file}::{target_function}",
+            verdict=False,
+            detail="Baseline tests fail against the unmutated code; cannot assess mutations",
+            lines=[-1],
+        )
 
     for i, mutation in enumerate(mutations):
         mutated_source = _apply_mutation_by_index(source, target_function, i)

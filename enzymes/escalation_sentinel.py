@@ -90,8 +90,14 @@ def main():
             metadata['fitness']['stress_survived'] = metadata['fitness'].get('stress_survived', 0) + 1
             
             # Move back to active cells directory
-            parent_type = metadata.get('type', 'walls') + 's'
-            target_dir = os.path.join(cells_dir, parent_type)
+            raw_type = str(metadata.get('type', 'wall')).rstrip('s')
+            allowed_types = {'wall', 'membrane', 'vacuole', 'chloroplast', 'ribosome', 'nucleus'}
+            cell_type = raw_type if raw_type in allowed_types else 'wall'
+            parent_type = cell_type + 's'
+            target_dir = os.path.abspath(os.path.join(cells_dir, parent_type))
+            abs_cells_dir = os.path.abspath(cells_dir)
+            if not target_dir.startswith(abs_cells_dir) or os.path.commonpath([abs_cells_dir, target_dir]) != abs_cells_dir:
+                target_dir = os.path.join(abs_cells_dir, 'walls')
             os.makedirs(target_dir, exist_ok=True)
             new_path = os.path.join(target_dir, filename)
             

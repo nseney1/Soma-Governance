@@ -38,7 +38,9 @@ def _create_git_repo_with_hook(hook_script: str) -> str:
     
     # Install hook
     hook_path = os.path.join(repo, '.git', 'hooks', 'pre-commit')
-    with open(hook_path, 'w') as f:
+    # LF and UTF-8: Windows text mode would write CRLF (which bash rejects)
+    # and encode with the locale codec.
+    with open(hook_path, 'w', encoding='utf-8', newline='\n') as f:
         f.write(hook_script)
     os.chmod(hook_path, os.stat(hook_path).st_mode | stat.S_IEXEC)
     
@@ -54,7 +56,7 @@ def _attempt_commit(repo: str, filename: str, content: str = 'test') -> subproce
     subprocess.run(['git', 'add', filename], capture_output=True, cwd=repo)
     return subprocess.run(
         ['git', 'commit', '-m', 'test commit'],
-        capture_output=True, cwd=repo, text=True
+        capture_output=True, cwd=repo, text=True, encoding='utf-8', errors='replace'
     )
 
 
@@ -94,7 +96,7 @@ class TestWallHookGeneration:
         # Attempt commit with nothing staged (should fail with empty commit, not hook)
         result = subprocess.run(
             ['git', 'commit', '--allow-empty', '-m', 'empty'],
-            capture_output=True, cwd=repo, text=True
+            capture_output=True, cwd=repo, text=True, encoding='utf-8', errors='replace'
         )
         # --allow-empty bypasses changed-file check, so hook sees empty CHANGED_FILES
         # Our hook should exit 0 for empty files

@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/soma_python.sh"
+soma_resolve_python || true
 
 # log_finding.sh — Single entry point for governance finding logging.
 # Replaces ad-hoc echo >> commands. Routes critical findings to pending_critical.md.
@@ -50,8 +52,8 @@ mkdir -p "${LOGS_REPO}/governance"
   fi
 
   # 1. Append JSON record to audit log (safe serialization)
-  if command -v python3 &>/dev/null; then
-    python3 -c "
+  if [ -n "${SOMA_PYTHON:-}" ]; then
+    soma_py -c "
 import json, sys
 print(json.dumps({
     'timestamp': sys.argv[1],

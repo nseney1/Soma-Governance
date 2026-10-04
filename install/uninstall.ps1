@@ -475,6 +475,98 @@ function Remove-SomaSection {
     }
 }
 
+$SomaPathLineMarker = "# added by soma doctor --fix-path"
+
+# Remove the exact shell rc lines `soma doctor --fix-path` appended (parity
+# with uninstall.sh rc_lines_py). Byte-preserving: a UTF-8 BOM and the line
+# endings are kept, only lines equal (ordinal) to a recorded line go, and an
+# edited or missing line leaves the file untouched. Symlinked rc files are not
+# rewritten here (uninstall.sh follows in-HOME links; this script refuses).
+function Remove-SomaPathLine {
+    param([string]$Path, [object[]]$Entries)
+    Assert-SafeSinkPath -Path $Path -Roots @($UserHome)
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return }
+    $fileItem = Get-Item -LiteralPath $Path -Force -ErrorAction Stop
+    if (($fileItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) {
+        Write-LogWarn "$Path is a symlink - not modified. Remove the soma PATH line by hand."
+        return
+    }
+    $bytes = [System.IO.File]::ReadAllBytes($Path)
+    $offset = 0
+    if ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF) {
+        $offset = 3
+    }
+    $strict = New-Object System.Text.UTF8Encoding($false, $true)
+    try {
+        $text = $strict.GetString($bytes, $offset, $bytes.Length - $offset)
+    } catch {
+        Write-LogWarn "$Path is not valid UTF-8 - not modified. Remove the soma PATH line by hand."
+        return
+    }
+    $kept = New-Object System.Collections.Generic.List[string]
+    $hitEntries = @()
+    $lastRemoved = $false
+    foreach ($piece in [System.Text.RegularExpressions.Regex]::Split($text, '(?<=\n)')) {
+        if ($piece.Length -eq 0) { continue }
+        $lineBody = $piece.TrimEnd([char[]]@("`r", "`n"))
+        $match = $null
+        foreach ($e in $Entries) {
+            if ([string]::Equals($lineBody, $e.Line, [StringComparison]::Ordinal)) { $match = $e; break }
+        }
+        if ($null -ne $match) {
+            $hitEntries += $match
+            $lastRemoved = $true
+            continue
+        }
+        $kept.Add($piece)
+        $lastRemoved = $false
+    }
+    foreach ($e in $Entries) {
+        $found = @($hitEntries | Where-Object { [string]::Equals($_.Line, $e.Line, [StringComparison]::Ordinal) })
+        if ($found.Count -eq 0) {
+            Write-LogWarn "soma PATH line not found in $Path (edited or already removed): $($e.Line)"
+        }
+    }
+    if ($hitEntries.Count -eq 0) {
+        Write-LogSkip "$Path (soma PATH line not present, left untouched)"
+        return
+    }
+    # Undo the newline doctor added before its line when the file lacked one.
+    if ($lastRemoved -and $kept.Count -gt 0 -and @($hitEntries | Where-Object { $_.PrefixNewline }).Count -gt 0) {
+        $tail = $kept[$kept.Count - 1]
+        if ($tail.EndsWith("`r`n")) {
+            $tail = $tail.Substring(0, $tail.Length - 2)
+        } elseif ($tail.EndsWith("`n")) {
+            $tail = $tail.Substring(0, $tail.Length - 1)
+        }
+        $kept[$kept.Count - 1] = $tail
+    }
+    $newText = [string]::Join("", $kept.ToArray())
+    if ($newText.Length -eq 0 -and $offset -eq 0 -and @($hitEntries | Where-Object { $_.Created }).Count -gt 0) {
+        Remove-Item -LiteralPath $Path -Force -ErrorAction Stop
+        Write-LogInfo "removed $Path (created by soma doctor --fix-path, nothing else in it)"
+        return
+    }
+    $encoded = $strict.GetBytes($newText)
+    $out = New-Object byte[] ($offset + $encoded.Length)
+    if ($offset -gt 0) { [Array]::Copy($bytes, 0, $out, 0, $offset) }
+    [Array]::Copy($encoded, 0, $out, $offset, $encoded.Length)
+    $tempPath = "$Path.soma.$([Guid]::NewGuid().ToString('N')).tmp"
+    try {
+        [System.IO.File]::WriteAllBytes($tempPath, $out)
+        try {
+            $acl = Get-Acl -LiteralPath $Path
+            Set-Acl -LiteralPath $tempPath -AclObject $acl
+        } catch {}
+        Move-Item -LiteralPath $tempPath -Destination $Path -Force
+    } finally {
+        if (Test-Path -LiteralPath $tempPath -PathType Leaf) {
+            Remove-Item -LiteralPath $tempPath -Force
+        }
+    }
+    Write-LogInfo "removed soma PATH line from $Path"
+}
+
 # ── Manifest Resolution ───────────────────────────────────────────
 $ManifestPath = Join-Path (Join-Path $UserHome ".soma") "manifest.json"
 $LocalManifestPath = Join-Path (Join-Path $WorkDir ".soma") "manifest.json"
@@ -583,6 +675,41 @@ if ($Manifest) {
             $unsafeEntries += "backup_dir entry: $rawBackup ($script:UnsafeReason)"
         }
     }
+    # path_lines: shell rc lines appended by `soma doctor --fix-path`. Only the
+    # home manifest may carry them (a project manifest is repository content);
+    # each file must lie inside $UserHome and each line must be a single line
+    # ending with the doctor marker.
+    $rawPathLines = Get-ManifestProperty -Object $Manifest -Name "path_lines"
+    if ($null -ne $rawPathLines) {
+        foreach ($entry in @($rawPathLines)) {
+            if ($null -eq $entry) { continue }
+            if ($ManifestIsLocal) {
+                $unsafeEntries += "path_lines entry: only honoured in the home manifest ($UserHome\.soma\manifest.json)"
+                break
+            }
+            $pf = Get-ManifestProperty -Object $entry -Name "file"
+            $pl = Get-ManifestProperty -Object $entry -Name "line"
+            if (-not ($pf -is [string]) -or -not ($pl -is [string])) {
+                $unsafeEntries += "path_lines entry: $entry (file and line must be strings)"
+                continue
+            }
+            $allowedRcBasenames = @(".bashrc", ".bash_profile", ".zshrc", "config.fish")
+            $pfBase = [System.IO.Path]::GetFileName($pf)
+            if ($allowedRcBasenames -notcontains $pfBase) {
+                $unsafeEntries += "path_lines entry: $pf (file basename must be one of .bashrc, .bash_profile, .zshrc, config.fish)"
+                continue
+            }
+            if ($pl.IndexOfAny([char[]]@("`r", "`n", [char]0)) -ge 0 -or
+                -not $pl.EndsWith($SomaPathLineMarker, [StringComparison]::Ordinal)) {
+                $unsafeEntries += "path_lines entry: $pf (line must be one line ending with '$SomaPathLineMarker')"
+                continue
+            }
+            $convertedRc = Convert-ManifestPath $pf
+            if (-not (Test-SafeManifestPath -Path $convertedRc -Roots @($UserHome))) {
+                $unsafeEntries += "path_lines entry: $pf ($script:UnsafeReason)"
+            }
+        }
+    }
     if ($unsafeEntries.Count -gt 0) {
         Write-LogError "Manifest at $ManifestPath contains unsafe entries:"
         foreach ($u in $unsafeEntries) { Write-Host "    UNSAFE $u" }
@@ -598,6 +725,8 @@ $DirsToRemove  = @()
 $ModifyFiles   = @()
 $McpConfigsToClean = @()
 $ConfigToRemove = @()
+$RcFilesToClean = @()
+$PathLineEntries = @()
 $BackupDir = ""
 
 function Add-FileTarget {
@@ -650,6 +779,23 @@ if ($Manifest) {
 
     foreach ($mcpConfig in @(Get-ManifestPathList -Object $Manifest -Name "mcp_configs")) {
         Add-McpConfigTarget $mcpConfig
+    }
+
+    # Validated above: present only in the home manifest.
+    $rawPathLines = Get-ManifestProperty -Object $Manifest -Name "path_lines"
+    if ($null -ne $rawPathLines -and -not $ManifestIsLocal) {
+        foreach ($entry in @($rawPathLines)) {
+            if ($null -eq $entry) { continue }
+            $rcPath = Convert-ManifestPath ([string](Get-ManifestProperty -Object $entry -Name "file"))
+            if (-not $rcPath) { continue }
+            if ($RcFilesToClean -notcontains $rcPath) { $RcFilesToClean += $rcPath }
+            $PathLineEntries += [PSCustomObject]@{
+                File          = $rcPath
+                Line          = [string](Get-ManifestProperty -Object $entry -Name "line")
+                Created       = ((Get-ManifestProperty -Object $entry -Name "created") -eq $true)
+                PrefixNewline = ((Get-ManifestProperty -Object $entry -Name "prefix_newline") -eq $true)
+            }
+        }
     }
 } else {
     $knownRules = Get-RepoRuleNames
@@ -811,10 +957,20 @@ foreach ($c in $ConfigToRemove) {
 }
 $ConfigToRemove = $realConfig
 
+$realRc = @()
+foreach ($r in $RcFilesToClean) {
+    if (Test-Path -LiteralPath $r -PathType Leaf) {
+        if ($realRc -notcontains $r) { $realRc += $r }
+    } else {
+        Write-LogSkip "$r (recorded soma PATH line file no longer present)"
+    }
+}
+$RcFilesToClean = $realRc
+
 # Confine the complete plan (manifest and fallback entries alike) before
 # anything is touched, so a refusal never leaves a half-removed install.
 $unsafePlan = @()
-foreach ($p in @($FilesToRemove + $DirsToRemove + $ModifyFiles + $McpConfigsToClean + $ConfigToRemove)) {
+foreach ($p in @($FilesToRemove + $DirsToRemove + $ModifyFiles + $McpConfigsToClean + $ConfigToRemove + $RcFilesToClean)) {
     if (-not (Test-SafeManifestPath -Path $p -Roots $script:SinkRoots)) {
         $unsafePlan += "$p ($script:UnsafeReason)"
     }
@@ -827,7 +983,7 @@ if ($unsafePlan.Count -gt 0) {
 }
 
 # ── Print the Plan ────────────────────────────────────────────────
-$PlanCount = $FilesToRemove.Count + $DirsToRemove.Count + $ModifyFiles.Count + $McpConfigsToClean.Count + $ConfigToRemove.Count
+$PlanCount = $FilesToRemove.Count + $DirsToRemove.Count + $ModifyFiles.Count + $McpConfigsToClean.Count + $ConfigToRemove.Count + $RcFilesToClean.Count
 
 Write-Host ""
 Write-Host "The following will be removed/modified:"
@@ -836,6 +992,7 @@ foreach ($d in $DirsToRemove)  { Write-Host "  - [DIR]  $d" }
 foreach ($m in $ModifyFiles)   { Write-Host "  - [MOD]  $m (strip Soma sections, keep the rest)" }
 foreach ($mcpConfig in $McpConfigsToClean) { Write-Host "  - [MCP]  $mcpConfig (remove mcpServers.soma, keep the rest)" }
 foreach ($c in $ConfigToRemove) { Write-Host "  - [USER CONFIG] $c (your Soma configuration - pass -KeepConfig to keep it)" }
+foreach ($r in $RcFilesToClean) { Write-Host "  - [MOD]  $r (remove soma PATH line)" }
 
 if ($PlanCount -eq 0) {
     Write-Host "Nothing to remove."
@@ -908,11 +1065,17 @@ if (-not $DryRun) {
     }
 
     foreach ($d in $DirsToRemove) {
-        Assert-SafeSinkPath -Path $d
+        Assert-SafeSinkPath -Path $d -RejectFinalReparsePoint
         if (Test-Path -LiteralPath $d -PathType Container) {
             try {
-                Remove-Item -LiteralPath $d -Recurse -Force -ErrorAction Stop
-                Write-LogInfo "removed $d\"
+                $item = Get-Item -LiteralPath $d -Force -ErrorAction Stop
+                if ($item.Attributes.HasFlag([System.IO.FileAttributes]::ReparsePoint)) {
+                    Remove-Item -LiteralPath $d -Force -ErrorAction Stop
+                    Write-LogInfo "removed junction $d\"
+                } else {
+                    Remove-Item -LiteralPath $d -Recurse -Force -ErrorAction Stop
+                    Write-LogInfo "removed $d\"
+                }
             } catch {
                 Set-Failure "could not remove $d : $($_.Exception.Message)"
             }
@@ -944,6 +1107,15 @@ if (-not $DryRun) {
             } catch {
                 Set-Failure "could not remove $c : $($_.Exception.Message)"
             }
+        }
+    }
+
+    # soma doctor --fix-path lines. A hard failure keeps the manifest (below).
+    foreach ($r in $RcFilesToClean) {
+        try {
+            Remove-SomaPathLine -Path $r -Entries @($PathLineEntries | Where-Object { $_.File -eq $r })
+        } catch {
+            Set-Failure "could not clean $r : $($_.Exception.Message)"
         }
     }
 

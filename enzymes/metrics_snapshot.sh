@@ -6,7 +6,7 @@ source "$(dirname "$0")/common.sh" 2>/dev/null || true
 # Forward arguments to python logic
 SCRIPT_DIR="$(dirname "$(realpath "$0")")"
 export SCRIPT_DIR
-python3 - "$@" << 'PYEOF'
+soma_py - "$@" << 'PYEOF'
 import sys
 import os
 
@@ -39,7 +39,7 @@ def resolve_metrics_dir(workspace):
     if not team_repo or not metrics_repo:
         conf_path = os.path.join(workspace, "soma.conf")
         if os.path.exists(conf_path):
-            with open(conf_path) as f:
+            with open(conf_path, encoding="utf-8") as f:
                 for line in f:
                     line = line.strip()
                     if line.startswith("TEAM_REPO=") and not line.startswith("#"):
@@ -71,7 +71,7 @@ def main():
 
     # Call token_census.py
     census_script = os.path.join(workspace, "enzymes", "token_census.py")
-    result = subprocess.run(["python3", census_script, "--json"], capture_output=True, text=True)
+    result = subprocess.run([sys.executable, census_script, "--json"], capture_output=True, text=True)
     if result.returncode != 0:
         print("Error running token_census.py", file=sys.stderr)
         sys.exit(1)
@@ -87,7 +87,7 @@ def main():
     prong_budgets = {}
     staff_review_path = os.path.join(workspace, "organs/staff-review/SKILL.md")
     if os.path.exists(staff_review_path):
-        with open(staff_review_path, "r") as f:
+        with open(staff_review_path, "r", encoding="utf-8") as f:
             content = f.read()
         
         for line in content.split("\n"):
@@ -127,7 +127,7 @@ def main():
         
     compare_data = None
     if compare_file and os.path.exists(compare_file):
-        with open(compare_file, "r") as f:
+        with open(compare_file, "r", encoding="utf-8") as f:
             compare_data = json.load(f)
 
     # Save snapshot to configured metrics directory
@@ -137,7 +137,7 @@ def main():
         save_metrics = dict(metrics)
         save_metrics["timestamp"] = datetime.datetime.now(timezone.utc).isoformat() + "Z"
         save_metrics.pop("metrics_dir", None)  # Don't persist the path itself
-        with open(save_path, "w") as f:
+        with open(save_path, "w", encoding="utf-8") as f:
             json.dump(save_metrics, f, indent=2)
         print(f"Saved to: {save_path}", file=sys.stderr)
 

@@ -27,7 +27,7 @@ fi
 find "$BRAIN_DIR" -maxdepth 5 -name "transcript.jsonl" -path "*/.system_generated/logs/*" 2>/dev/null | while read -r transcript; do
     rel="${transcript#"$BRAIN_DIR"/}"
     conv_id="${rel%%/*}"
-    step_count=$(wc -l < "$transcript")
+    step_count=$(wc -l < "$transcript" | tr -d ' ')
 
     # Skip tiny conversations
     if [ "$step_count" -lt "$MIN_STEPS" ]; then

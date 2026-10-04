@@ -1,5 +1,6 @@
 """Regression tests for the canonical governance-cell inventory."""
 import os
+import time
 
 import pytest
 
@@ -41,6 +42,26 @@ def test_inventory_is_stable_and_captures_exact_bytes(tmp_path):
         assert entry.size == len(entry.content)
         assert len(entry.digest) == 64
         assert entry.content == open(entry.absolute_path, "rb").read()
+
+
+def test_cell_edited_after_creation_is_inventoried(tmp_path):
+    """BUG-035: on Windows os.stat reports st_ctime as creation time but
+    os.fstat reports it as last-change time, so any cell edited after it was
+    created was rejected as 'changed before it was opened'."""
+    from soma_core.cell_inventory import inventory_cells
+
+    cell = tmp_path / ".soma" / "cells" / "walls" / "edited.md"
+    _write_cell(cell, "edited")
+    time.sleep(0.05)
+    with open(cell, "a", encoding="utf-8") as f:
+        f.write("Edited after creation.\n")
+
+    inventory = inventory_cells(str(tmp_path))
+    assert [entry.relative_path for entry in inventory.entries] == [
+        ".soma/cells/walls/edited.md"
+    ]
+    assert inventory.entries[0].content == cell.read_bytes()
+    assert b"Edited after creation." in inventory.entries[0].content
 
 
 def test_missing_cells_directory_has_stable_empty_inventory(tmp_path):

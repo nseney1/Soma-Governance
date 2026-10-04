@@ -16,6 +16,11 @@ INSTALL_PS1 = os.path.join(REPO_ROOT, "install", "install.ps1")
 UNINSTALL_PS1 = os.path.join(REPO_ROOT, "install", "uninstall.ps1")
 
 
+def same_path(a: str, b: str) -> bool:
+    # Under Git Bash the generator writes C:/... (forward slashes).
+    return os.path.normcase(os.path.normpath(a)) == os.path.normcase(os.path.normpath(b))
+
+
 def isolated_env(home: Path) -> dict[str, str]:
     return {"HOME": str(home), "USERPROFILE": str(home)}
 
@@ -56,13 +61,13 @@ def test_bash_mcp_generators_merge_and_target_project(tmp_path, bash, platform, 
     assert merged["unrelated"] == original["unrelated"]
     assert merged["mcpServers"]["other"] == original["mcpServers"]["other"]
     soma = merged["mcpServers"]["soma"]
-    assert soma["cwd"] == str(project)
-    assert soma["env"]["SOMA_WORKSPACE"] == str(project)
+    assert same_path(soma["cwd"], str(project))
+    assert same_path(soma["env"]["SOMA_WORKSPACE"], str(project))
     assert "SOMA_ROOT" not in soma["env"]
     # A source checkout fallback is allowed only when the package cannot be
     # imported normally from the governed project.
     if "PYTHONPATH" in soma["env"]:
-        assert soma["env"]["PYTHONPATH"] == REPO_ROOT
+        assert same_path(soma["env"]["PYTHONPATH"], REPO_ROOT)
 
 
 @pytest.mark.parametrize(

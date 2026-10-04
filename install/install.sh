@@ -154,13 +154,32 @@ write_manifest() {
   hooks_arr="$(printf '%s' "$INSTALLED_HOOKS" | _json_array_from_lines)"
   mcp_configs_arr="$(printf '%s' "$INSTALLED_MCP_CONFIGS" | _json_array_from_lines)"
   
-  local ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+  local ts
+  ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
   local backup_path=${BACKUP_DIR:-null}
   [ "$backup_path" != "null" ] && backup_path="\"$backup_path\""
   
   local version
   version=$(cat "$REPO_DIR/VERSION" 2>/dev/null || echo "unknown")
-  
+
+  # Carry over the shell rc lines `soma doctor --fix-path` recorded
+  # (path_lines). Rewriting the home manifest without them would leave those
+  # lines in the user's rc file with nothing left to tell uninstall about them.
+  local pl_suffix="" pl_json="[]"
+  if [ "$scope" != "local" ] && [ -f "$target_json" ] && grep -q '"path_lines"' "$target_json"; then
+    if soma_resolve_python && pl_json="$(SOMA_MANIFEST="$target_json" soma_py -I -S -c '
+import json, os
+with open(os.environ["SOMA_MANIFEST"], "r", encoding="utf-8") as fh:
+    pl = json.load(fh).get("path_lines")
+print(json.dumps(pl if isinstance(pl, list) else []))
+' 2>/dev/null)"; then
+      [ "$pl_json" = "[]" ] || pl_suffix=","$'\n'"  \"path_lines\": $pl_json"
+    else
+      log_warn "Could not carry over path_lines from $target_json (no working Python 3 or unreadable JSON)."
+      log_warn "Lines added by 'soma doctor --fix-path' will not be removed by uninstall; remove them by hand."
+    fi
+  fi
+
   cat > "$target_json" <<EOF
 {
   "version": "$version",
@@ -176,7 +195,7 @@ write_manifest() {
   "files": $files_arr,
   "organs": $skills_arr,
   "hooks": $hooks_arr,
-  "mcp_configs": $mcp_configs_arr
+  "mcp_configs": $mcp_configs_arr$pl_suffix
 }
 EOF
 }
@@ -187,15 +206,22 @@ EOF
 # when `python3 -m soma_mcp` is otherwise unavailable from that workspace.
 merge_mcp_config() {
   local config_file="$1" workspace="$2" source_fallback=""
-  if ! command -v python3 >/dev/null 2>&1; then
-    log_error "python3 is required to safely merge MCP JSON configuration."
+  if [ -z "${SOMA_PYTHON:-}" ]; then
+    log_error "A working Python 3.9+ is required to safely merge MCP JSON configuration."
     return 1
   fi
-  if ! (cd "$workspace" && python3 -c 'import soma_mcp' >/dev/null 2>&1); then
+  # Would `python3 -m soma_mcp`, started in the workspace, find soma_mcp? It
+  # deliberately honours PYTHONPATH, user site-packages and the workspace
+  # itself (a workspace-local soma_mcp counts), but soma_py drops the CWD
+  # entry and the workspace is appended LAST, so stdlib names (json.py,
+  # os.py, ...) in the workspace can't shadow what soma_mcp imports (BUG-044).
+  # Uses importlib.util.find_spec to check without executing top-level code.
+  if ! soma_py -c 'import sys, importlib.util; sys.path.append(sys.argv[1]); sys.exit(0 if importlib.util.find_spec("soma_mcp") is not None else 1)' \
+       "$workspace" </dev/null >/dev/null 2>&1; then
     source_fallback="$REPO_DIR"
   fi
   SOMA_MCP_FILE="$config_file" SOMA_WORKSPACE="$workspace" \
-    SOMA_SOURCE_FALLBACK="$source_fallback" python3 - <<'PY'
+    SOMA_SOURCE_FALLBACK="$source_fallback" soma_py - <<'PY'
 import json
 import os
 import stat
@@ -235,12 +261,12 @@ try:
     if os.path.exists(path):
         os.chmod(temp_path, stat.S_IMODE(os.stat(path).st_mode))
     os.replace(temp_path, path)
-except Exception:
-    try:
-        os.unlink(temp_path)
-    except FileNotFoundError:
-        pass
-    raise
+finally:
+    if os.path.exists(temp_path):
+        try:
+            os.unlink(temp_path)
+        except OSError:
+            pass
 PY
 }
 
@@ -711,6 +737,9 @@ if [ "${INSTALL_GIT_HOOKS:-false}" = "true" ]; then
     if [ "$DRY_RUN" = "true" ]; then
       echo "[dry-run] would install git pre-commit hook."
     else
+      if [ -f ".git/hooks/pre-commit" ]; then
+        backup_file ".git/hooks/pre-commit"
+      fi
       cp "$REPO_DIR/install/hooks/pre-commit" ".git/hooks/pre-commit"
       chmod +x ".git/hooks/pre-commit"
       # Recorded so uninstall can remove it. It used to be installed and then
@@ -722,4 +751,16 @@ if [ "${INSTALL_GIT_HOOKS:-false}" = "true" ]; then
   else
     echo "No .git/hooks directory found, skipping pre-commit hook installation."
   fi
+fi
+
+# CLI PATH guidance (BUG-041). zsh does not read ~/.profile, so after a
+# `pip install --user` the soma script is often "command not found". Print the
+# exact line for the user's shell; never edit dotfiles, never fail the install.
+# Runs from the Soma checkout: `-m` puts the cwd first on sys.path, and the
+# project being governed must not be able to shadow soma_cli or the stdlib.
+# The interpreter is the resolved one (BUG-037), not a bare python3.
+if [ "$DRY_RUN" != "true" ] && ! command -v soma >/dev/null 2>&1 \
+   && [ -n "${SOMA_PYTHON:-}" ]; then
+  echo ""
+  (cd "$REPO_DIR" && soma_py -m soma_cli.pathcheck --hint) 2>/dev/null || true
 fi

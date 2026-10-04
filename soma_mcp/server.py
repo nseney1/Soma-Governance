@@ -65,12 +65,18 @@ _ERROR_TEXT_PREFIXES = ("ERROR", "CRITICAL ERROR")
 
 
 def _server_version() -> str:
-    """Resolve the version from a single source of truth.
-
-    Was hardcoded here, giving a third independent copy alongside VERSION and
-    pyproject.toml with no test tying them together. Prefers installed package
-    metadata, falls back to the VERSION file for a source checkout.
-    """
+    """Resolve the version from a single source of truth."""
+    version_file = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "VERSION"
+    )
+    if os.path.isfile(version_file):
+        try:
+            with open(version_file, "r", encoding="utf-8") as fh:
+                val = fh.read().strip()
+                if val:
+                    return val
+        except OSError:
+            pass
     try:
         from importlib.metadata import PackageNotFoundError, version
         try:
@@ -79,15 +85,7 @@ def _server_version() -> str:
             pass
     except ImportError:
         pass
-
-    version_file = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "VERSION"
-    )
-    try:
-        with open(version_file, "r", encoding="utf-8") as fh:
-            return fh.read().strip() or "unknown"
-    except OSError:
-        return "unknown"
+    return "unknown"
 
 
 def send_response(response: Dict[str, Any]):

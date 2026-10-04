@@ -1,5 +1,6 @@
 """Cell data structures and utilities."""
 from __future__ import annotations
+from datetime import datetime, timezone, date
 import math
 import os
 from dataclasses import dataclass, field
@@ -120,6 +121,24 @@ class Cell:
         score = laplace_score(self.fitness.true_positives, self.fitness.triggers)
         return score > 0.85 and self.fitness.triggers >= 20
 
+    def is_promotable_with_age(self, min_age_days: int = 0) -> bool:
+        if not self.is_promotable:
+            return False
+        if min_age_days > 0 and getattr(self, 'created_date', None):
+            c_date = self.created_date
+            if isinstance(c_date, str):
+                try:
+                    c_date = datetime.strptime(c_date, "%Y-%m-%d" if 'T' not in c_date else "%Y-%m-%dT%H:%M:%SZ")
+                except Exception:
+                    return True
+            elif isinstance(c_date, date) and not isinstance(c_date, datetime):
+                c_date = datetime.combine(c_date, datetime.min.time())
+            now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
+            created_utc = c_date.replace(tzinfo=None) if hasattr(c_date, 'tzinfo') and c_date.tzinfo else c_date
+            if (now_utc - created_utc).days < min_age_days:
+                return False
+        return True
+
 
 # ---------------------------------------------------------------------------
 # Canonical Cell Parser (Phase 2.1)
@@ -154,7 +173,8 @@ def parse_cell_file(filepath: str) -> Tuple[dict, str]:
     if not os.path.isfile(filepath):
         raise CellNotFoundError(f"Cell file not found: {filepath}")
 
-    with open(filepath, encoding='utf-8') as f:
+    # utf-8-sig: PowerShell 5.1 `Set-Content -Encoding UTF8` writes a BOM.
+    with open(filepath, encoding='utf-8-sig') as f:
         content = f.read()
 
     if not content.startswith('---'):

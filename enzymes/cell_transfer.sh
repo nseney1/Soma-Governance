@@ -2,9 +2,18 @@
 # cell_transfer.sh: Copies a cell to another project with fitness reset.
 # Usage: bash enzymes/cell_transfer.sh <cell_id> --to /path/to/target/project
 
-if [[ -f "enzymes/common.sh" ]]; then
-  source "enzymes/common.sh"
-fi
+# Symlink-safe self-location: a dirname of a symlinked invocation names the
+# link's directory, where soma_python.sh (and the Python helpers) don't exist.
+PRG="${BASH_SOURCE[0]}"
+while [ -h "$PRG" ]; do
+  DIR="$(cd -P "$(dirname "$PRG")" && pwd)"
+  PRG="$(readlink "$PRG")"
+  [[ $PRG != /* ]] && PRG="$DIR/$PRG"
+done
+SCRIPT_DIR="$(cd -P "$(dirname "$PRG")" && pwd)"
+# Nothing here uses common.sh; the Python helper below needs the resolver.
+source "$SCRIPT_DIR/soma_python.sh"
+soma_resolve_python || true
 
 CELL_ID=""
 TARGET_DIR=""
@@ -37,6 +46,32 @@ if [[ -z "$CELL_ID" || -z "$TARGET_DIR" ]]; then
   exit 1
 fi
 
+# Source project root: SOMA_ROOT, else walk up from the CWD to .soma/cells/
+# (same rule as cell_create.sh / cell_signal.sh). $REPO_DIR used to be read
+# without ever being set, so the search ran in /.soma/cells.
+REPO_DIR=""
+if [ -n "${SOMA_ROOT:-}" ] && [ -d "$SOMA_ROOT" ]; then
+  REPO_DIR="$SOMA_ROOT"
+else
+  _d="$(pwd)"
+  while [ "$_d" != "/" ]; do
+    if [[ "$_d" == */vendor/* ]] || [[ "$_d" == */vendor ]]; then
+      _d="$(dirname "$_d")"
+      continue
+    fi
+    if [ -d "$_d/.soma/cells" ]; then
+      REPO_DIR="$_d"
+      break
+    fi
+    _d="$(dirname "$_d")"
+  done
+fi
+if [[ -z "$REPO_DIR" || ! -d "$REPO_DIR/.soma/cells" ]]; then
+  echo "Error: No Soma project found: no .soma/cells/ in ${REPO_DIR:-$(pwd) or any parent directory}." >&2
+  echo "Run from inside the source project, or set SOMA_ROOT to its root." >&2
+  exit 1
+fi
+
 SOURCE_CELL=$(find "$REPO_DIR/.soma/cells" -type f -name "*${CELL_ID}*.md" | head -n 1)
 
 if [[ -z "$SOURCE_CELL" ]]; then
@@ -52,9 +87,9 @@ fi
 
 FILENAME=$(basename "$SOURCE_CELL")
 TARGET_BASENAME=$(basename "$TARGET_DIR")
-SOURCE_BASENAME=$(basename "$PWD")
+SOURCE_BASENAME=$(basename "$REPO_DIR")
 
-python3 -c "
+soma_py -c "
 import yaml
 import sys
 import os
@@ -66,6 +101,7 @@ source_file = sys.argv[1]
 target_dir = sys.argv[2]
 source_basename = sys.argv[3]
 target_basename = sys.argv[4]
+source_repo = sys.argv[5]
 filename = os.path.basename(source_file)
 
 with open(source_file, 'r') as f:
@@ -126,7 +162,7 @@ with open(dest_file, 'w') as f:
         f.write(body_str)
 
 # Log to metrics (in source project)
-metrics_dir = '.soma/metrics'
+metrics_dir = os.path.join(source_repo, '.soma', 'metrics')
 os.makedirs(metrics_dir, exist_ok=True)
 transfers_log = os.path.join(metrics_dir, 'transfers.jsonl')
 
@@ -138,7 +174,7 @@ log_entry = {
 
 with open(transfers_log, 'a') as f:
     f.write(json.dumps(log_entry) + '\n')
-" "$SOURCE_CELL" "$TARGET_DIR" "$SOURCE_BASENAME" "$TARGET_BASENAME"
+" "$SOURCE_CELL" "$TARGET_DIR" "$SOURCE_BASENAME" "$TARGET_BASENAME" "$REPO_DIR"
 
 echo "Transferred: $CELL_ID -> $TARGET_BASENAME (fitness reset, 5-session probation)"
 exit 0

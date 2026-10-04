@@ -93,7 +93,7 @@ def get_all_rules() -> list[Path]:
                          ids=lambda p: f"genome/{p.name}")
 def test_genome_rule_has_frontmatter(rule_file):
     """Every genome rule MUST have YAML frontmatter."""
-    meta = parse_frontmatter(rule_file.read_text())
+    meta = parse_frontmatter(rule_file.read_text(encoding="utf-8"))
     assert meta is not None, f"{rule_file.name} lacks YAML frontmatter"
 
 
@@ -101,7 +101,7 @@ def test_genome_rule_has_frontmatter(rule_file):
                          ids=lambda p: f"genome/{p.name}")
 def test_genome_rule_has_id(rule_file):
     """Every genome rule MUST have an 'id' field in frontmatter."""
-    meta = parse_frontmatter(rule_file.read_text())
+    meta = parse_frontmatter(rule_file.read_text(encoding="utf-8"))
     assert meta is not None, f"{rule_file.name} lacks YAML frontmatter"
     assert "id" in meta, f"{rule_file.name} missing 'id' field"
 
@@ -110,7 +110,7 @@ def test_genome_rule_has_id(rule_file):
                          ids=lambda p: f"genome/{p.name}")
 def test_genome_rule_has_domain(rule_file):
     """Every genome rule MUST have a 'domain' field in frontmatter."""
-    meta = parse_frontmatter(rule_file.read_text())
+    meta = parse_frontmatter(rule_file.read_text(encoding="utf-8"))
     assert meta is not None, f"{rule_file.name} lacks YAML frontmatter"
     assert "domain" in meta, f"{rule_file.name} missing 'domain' field"
 
@@ -122,7 +122,7 @@ def test_genome_rule_has_domain(rule_file):
                          ids=lambda p: f"oracles/{p.name}")
 def test_oracle_rule_has_frontmatter(rule_file):
     """Every oracle rule MUST have YAML frontmatter."""
-    meta = parse_frontmatter(rule_file.read_text())
+    meta = parse_frontmatter(rule_file.read_text(encoding="utf-8"))
     assert meta is not None, f"{rule_file.name} lacks YAML frontmatter"
 
 
@@ -130,7 +130,7 @@ def test_oracle_rule_has_frontmatter(rule_file):
                          ids=lambda p: f"oracles/{p.name}")
 def test_oracle_rule_has_id(rule_file):
     """Every oracle rule MUST have an 'id' field in frontmatter."""
-    meta = parse_frontmatter(rule_file.read_text())
+    meta = parse_frontmatter(rule_file.read_text(encoding="utf-8"))
     assert meta is not None, f"{rule_file.name} lacks YAML frontmatter"
     assert "id" in meta, f"{rule_file.name} missing 'id' field"
 
@@ -139,7 +139,7 @@ def test_oracle_rule_has_id(rule_file):
                          ids=lambda p: f"oracles/{p.name}")
 def test_oracle_rule_has_domain(rule_file):
     """Every oracle rule MUST have a 'domain' field in frontmatter."""
-    meta = parse_frontmatter(rule_file.read_text())
+    meta = parse_frontmatter(rule_file.read_text(encoding="utf-8"))
     assert meta is not None, f"{rule_file.name} lacks YAML frontmatter"
     assert "domain" in meta, f"{rule_file.name} missing 'domain' field"
 
@@ -151,7 +151,7 @@ def test_oracle_rule_has_domain(rule_file):
                          ids=lambda p: f"cells/{p.parent.name}/{p.name}")
 def test_cell_rule_has_frontmatter(rule_file):
     """Every cell rule MUST have YAML frontmatter."""
-    meta = parse_frontmatter(rule_file.read_text())
+    meta = parse_frontmatter(rule_file.read_text(encoding="utf-8"))
     assert meta is not None, f"{rule_file.name} lacks YAML frontmatter"
 
 
@@ -159,7 +159,7 @@ def test_cell_rule_has_frontmatter(rule_file):
                          ids=lambda p: f"cells/{p.parent.name}/{p.name}")
 def test_cell_rule_has_domain(rule_file):
     """Every cell rule MUST have a 'domain' field in frontmatter."""
-    meta = parse_frontmatter(rule_file.read_text())
+    meta = parse_frontmatter(rule_file.read_text(encoding="utf-8"))
     assert meta is not None, f"{rule_file.name} lacks YAML frontmatter"
     assert "domain" in meta, f"{rule_file.name} missing 'domain' field"
 
@@ -171,7 +171,7 @@ def test_cell_rule_has_domain(rule_file):
                          ids=lambda p: str(p.relative_to(REPO_ROOT)))
 def test_domain_is_valid(rule_file):
     """Domain must be one of the known values."""
-    meta = parse_frontmatter(rule_file.read_text())
+    meta = parse_frontmatter(rule_file.read_text(encoding="utf-8"))
     assert meta is not None, f"{rule_file.name} lacks YAML frontmatter"
     assert "domain" in meta, f"{rule_file.name} missing domain"
     assert meta["domain"] in VALID_DOMAINS, (
@@ -183,7 +183,7 @@ def test_domain_is_valid(rule_file):
                          ids=lambda p: str(p.relative_to(REPO_ROOT)))
 def test_id_matches_filename(rule_file):
     """Rule ID should match the filename (without extension)."""
-    meta = parse_frontmatter(rule_file.read_text())
+    meta = parse_frontmatter(rule_file.read_text(encoding="utf-8"))
     assert meta is not None, f"{rule_file.name} lacks YAML frontmatter"
     assert "id" in meta, f"{rule_file.name} missing id"
     expected = rule_file.stem
@@ -196,7 +196,7 @@ def test_id_matches_filename(rule_file):
                          ids=lambda p: f"cells/{p.parent.name}/{p.name}")
 def test_cell_rule_has_id(rule_file):
     """Every cell rule MUST have an 'id' field in frontmatter."""
-    meta = parse_frontmatter(rule_file.read_text())
+    meta = parse_frontmatter(rule_file.read_text(encoding="utf-8"))
     assert meta is not None, f"{rule_file.name} lacks YAML frontmatter"
     assert "id" in meta, f"{rule_file.name} missing 'id' field"
 
@@ -205,7 +205,7 @@ def test_no_duplicate_rule_ids():
     """All rule IDs across genome + oracles + cells must be unique."""
     ids_seen: dict[str, str] = {}
     for rule_file in get_all_rules():
-        meta = parse_frontmatter(rule_file.read_text())
+        meta = parse_frontmatter(rule_file.read_text(encoding="utf-8"))
         if meta and "id" in meta:
             rid = meta["id"]
             assert rid not in ids_seen, (

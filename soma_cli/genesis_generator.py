@@ -85,7 +85,7 @@ def _render_cell(candidate: CellCandidate) -> str:
         "hypothesis": _sanitize_frontmatter_value(candidate.hypothesis),
         "prediction": _sanitize_frontmatter_value(candidate.prediction),
         "falsification": _sanitize_frontmatter_value(candidate.falsification),
-        "target_paths": [_sanitize_frontmatter_value(p) for p in candidate.target_paths],
+        "target_paths": [_sanitize_frontmatter_value(p).replace('\\', '/') for p in candidate.target_paths],
         "enforcement": "advisory",
         "minimum_mode": "breeze",
         "tags": [_sanitize_frontmatter_value(t) for t in candidate.tags] + ["genesis-generated"],

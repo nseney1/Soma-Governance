@@ -218,6 +218,16 @@ function Write-InstallManifest {
     if (Test-Path -LiteralPath $versionFile -PathType Leaf) {
         $version = (Get-Content -LiteralPath $versionFile -Raw -Encoding UTF8).Trim()
     }
+    $manifestPath = Join-Path $manifestDir "manifest.json"
+    $existingPathLines = $null
+    if ($InstallScope -ne "local" -and (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
+        try {
+            $rawExisting = Get-Content -LiteralPath $manifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
+            if ($null -ne $rawExisting -and $null -ne $rawExisting.path_lines) {
+                $existingPathLines = $rawExisting.path_lines
+            }
+        } catch {}
+    }
     $manifest = [ordered]@{
         "version" = $version
         "installed_at" = [DateTime]::UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ")
@@ -231,7 +241,9 @@ function Write-InstallManifest {
         "hooks" = @($InstalledHooks)
         "mcp_configs" = @($InstalledMcpConfigs)
     }
-    $manifestPath = Join-Path $manifestDir "manifest.json"
+    if ($null -ne $existingPathLines) {
+        $manifest["path_lines"] = $existingPathLines
+    }
     Write-Utf8File -Path $manifestPath -Content (($manifest | ConvertTo-Json -Depth 8) + "`n")
 }
 
@@ -261,17 +273,14 @@ function Merge-SomaMcpConfig {
 
     # Prefer a normally installed soma_mcp package. A checkout-only install
     # gets a documented source PYTHONPATH fallback instead of using the
-    # checkout as the governed workspace/cwd.
+    # checkout as the governed workspace/cwd. Uses isolated mode (-I) and
+    # importlib.util.find_spec to check without executing workspace code (BUG-044).
     $sourceFallback = $null
-    $savedLocation = (Get-Location).Path
     try {
-        Set-Location -LiteralPath $Workspace
-        & python3 -c "import soma_mcp" *> $null
+        & python3 -I -c "import sys, importlib.util; sys.path.append(sys.argv[1]); sys.exit(0 if importlib.util.find_spec('soma_mcp') is not None else 1)" "$Workspace" *> $null
         if ($LASTEXITCODE -ne 0) { $sourceFallback = $RepoDir }
     } catch {
         $sourceFallback = $RepoDir
-    } finally {
-        Set-Location -LiteralPath $savedLocation
     }
     $serverEnv = [ordered]@{ "SOMA_WORKSPACE" = $Workspace }
     if ($sourceFallback) { $serverEnv["PYTHONPATH"] = $sourceFallback }
@@ -383,7 +392,7 @@ function Apply-TeamOverrides {
 - **Review required**: At least one peer review before merge.
 - **Branch naming**: Use ``feature/<name>``, ``fix/<name>``, ``chore/<name>`` prefixes.
 "@
-                Add-Content -Path $gitWf -Value $override
+                Add-Content -Path $gitWf -Value $override -Encoding UTF8
                 Write-LogInfo "$([System.IO.Path]::GetFileName($gitWf)): team branching enforced"
             }
         }
@@ -403,7 +412,7 @@ function Apply-TeamOverrides {
 - **release branches**: Cut ``release/<version>`` from ``develop`` when preparing a release.
 - **hotfix branches**: Branch from ``main`` as ``hotfix/<name>``, merge back to both ``main`` and ``develop``.
 "@
-                Add-Content -Path $gitWf -Value $override
+                Add-Content -Path $gitWf -Value $override -Encoding UTF8
                 Write-LogInfo "$([System.IO.Path]::GetFileName($gitWf)): gitflow strategy applied"
             }
         }
@@ -428,7 +437,7 @@ function Apply-TeamOverrides {
 - **Approval required**: All destructive operations require $chain approval before execution.
 - **Document approver**: When executing destructive ops, cite who approved and when.
 "@
-                Add-Content -Path $destOps -Value $override
+                Add-Content -Path $destOps -Value $override -Encoding UTF8
                 Write-LogInfo "$([System.IO.Path]::GetFileName($destOps)): $chain approval chain enforced"
             }
         }
@@ -801,4 +810,27 @@ switch ($Platform) {
 
 if (-not $DryRun) {
     Write-InstallManifest
+}
+
+# CLI PATH guidance (BUG-041). Advisory only: prints the line to run, never
+# edits the user's environment, and never fails the install. Runs from the
+# Soma checkout so the governed project cannot shadow soma_cli via sys.path[0].
+if (-not $DryRun -and -not (Get-Command soma -ErrorAction SilentlyContinue)) {
+    $savedExitCode = $LASTEXITCODE
+    Push-Location -LiteralPath $RepoDir
+    try {
+        foreach ($py in @("python", "python3")) {
+            if (-not (Get-Command $py -ErrorAction SilentlyContinue)) { continue }
+            try {
+                $hint = & $py -m soma_cli.pathcheck --hint 2>$null
+                if ($LASTEXITCODE -eq 0) {
+                    if ($hint) { Write-Host ""; $hint | ForEach-Object { Write-Host $_ } }
+                    break
+                }
+            } catch { }
+        }
+    } finally {
+        Pop-Location
+        $global:LASTEXITCODE = $savedExitCode
+    }
 }

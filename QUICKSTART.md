@@ -38,6 +38,32 @@ make install SOMA_PLATFORM=gemini
 
 > **PEP 668 (externally managed Python)?** Use an isolated virtual environment. If that is not possible, `pip install --user soma-governance` may be appropriate for your system.
 
+> **Tip:** for a user-wide CLI, `pipx install soma-governance` keeps Soma in its own environment and `pipx ensurepath` puts it on `PATH` for you.
+
+### Verify the install
+
+```bash
+soma --version
+soma doctor
+```
+
+### `soma: command not found`?
+
+`pip install --user` puts `soma` in your user scripts directory (`~/.local/bin` on Linux), which is often not on `PATH`. zsh in particular does not read `~/.profile`. Run `python3 -m soma_cli doctor` (use `python` on Windows): it prints the directory and the exact line for your shell. Typical fixes:
+
+| Shell | Add to | Line |
+|:--|:--|:--|
+| zsh | `~/.zshrc` | `export PATH="$HOME/.local/bin:$PATH"` |
+| bash | `~/.bashrc` (macOS: `~/.bash_profile`) | `export PATH="$HOME/.local/bin:$PATH"` |
+| fish | `~/.config/fish/config.fish` (or `$XDG_CONFIG_HOME/fish/config.fish`) | `fish_add_path $HOME/.local/bin` |
+| PowerShell | user `Path` variable | the `[Environment]::SetEnvironmentVariable(...)` line printed by `soma doctor` |
+
+Open a new terminal afterwards. Until then, `python3 -m soma_cli <command>` works anywhere `soma` would.
+
+Prefer not to edit the file yourself? `python3 -m soma_cli doctor --fix-path` shows the exact file and line it would append (a dry run); add `--yes`, or answer `y` at its prompt, to apply it. It works for zsh, bash and fish only, marks the line `# added by soma doctor --fix-path`, does nothing if the line is already there, and records it so `install/uninstall.sh` removes exactly that line again. The installers themselves never edit your dotfiles, and `--fix-path` never touches a PowerShell `$PROFILE`.
+
+If `git commit` fails with a soma pre-commit message, the hook could not find `soma` either: fix `PATH` as above, then re-run `soma init` to refresh the hook (BUG-047).
+
 ## First Run with `soma init`
 
 `soma init` detects Gemini, Claude Code, Cursor, and Copilot markers. If detection is ambiguous, select one of those platforms explicitly.
@@ -98,6 +124,18 @@ soma oracle --json
 soma promote --dry-run
 soma demote --dry-run
 ```
+
+## Shell completion
+
+`soma completion <shell>` prints a completion script for `bash`, `zsh` or `fish`. It is generated from the CLI's own argument parser each time, so it always matches your installed version. Soma never edits your dotfiles: add the line yourself, then open a new terminal.
+
+| Shell | Add to | Line |
+|:--|:--|:--|
+| zsh | `~/.zshrc` (after `compinit`; oh-my-zsh runs it for you) | `eval "$(soma completion zsh)"` |
+| bash | `~/.bashrc` | `eval "$(soma completion bash)"` |
+| fish | `~/.config/fish/config.fish` | `soma completion fish \| source` |
+
+Without oh-my-zsh, put `autoload -Uz compinit && compinit` before the zsh line. To avoid running `soma` at every shell start, save the script once instead, e.g. `soma completion zsh > ~/.zfunc/_soma` (with `~/.zfunc` on your `fpath`) or `soma completion fish > ~/.config/fish/completions/soma.fish`, and re-run it after upgrading Soma.
 
 ## Make Targets
 

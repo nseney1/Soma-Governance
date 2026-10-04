@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -104,10 +105,24 @@ def _force_promote(project_root: Path, cell_id: str, dry_run: bool, use_json: bo
             print(msg)
         return 1
 
-    # Write to new location and remove old
+    # Write to new location atomically and remove old
     target_path.parent.mkdir(parents=True, exist_ok=True)
-    target_path.write_text(content, encoding="utf-8")
-    cell_path.unlink()
+    tmp_path = target_path.with_name(f"{target_path.name}.tmp.{os.getpid()}")
+    try:
+        with open(tmp_path, "w", encoding="utf-8") as fh:
+            fh.write(content)
+            fh.flush()
+            os.fsync(fh.fileno())
+        try:
+            os.replace(tmp_path, target_path)
+        except OSError:
+            import shutil
+            shutil.move(str(tmp_path), str(target_path))
+        cell_path.unlink()
+    except Exception:
+        if tmp_path.exists():
+            tmp_path.unlink()
+        raise
 
     if use_json:
         print(json.dumps({"action": "promote", "cell_id": cell_id,

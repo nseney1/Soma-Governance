@@ -17,7 +17,7 @@ if [ "${STEERING_SAFETY_GATE:-}" = "disabled" ]; then
 fi
 
 INPUT=$(cat)
-CMD=$(echo "$INPUT" | python3 -c "
+CMD=$(echo "$INPUT" | soma_py -c "
 import sys, json
 data = json.load(sys.stdin)
 tc = data.get('toolCall', {})
@@ -159,8 +159,8 @@ log_gate_event() {
     -e 's/Bearer [a-zA-Z0-9._-]\{20,\}/Bearer REDACTED/g' \
     -e 's/GEMINI_API_KEY=[^ ]*/GEMINI_API_KEY=REDACTED/g')
   cmd_snippet="$(echo "$redacted_cmd" | head -c 200)"
-  if command -v python3 &>/dev/null; then
-    python3 -c "
+  if [ -n "${SOMA_PYTHON:-}" ]; then
+    soma_py -c "
 import json, sys
 obj = {'timestamp': sys.argv[1], 'command': sys.argv[2], 'decision': sys.argv[3]}
 if sys.argv[4]: obj['reason'] = sys.argv[4]

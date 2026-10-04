@@ -7,10 +7,12 @@ if [[ "${1:-}" == "--execute" ]]; then
 fi
 
 SCRIPT_DIR="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/soma_python.sh"
+soma_resolve_python || true
 PYTHON_SCRIPT="$SCRIPT_DIR/cell_fitness.py"
 
 # Wraps cell_fitness.py. If it doesn't exist yet, we parse it ourselves.
-python3 - "$EXECUTE" "$SCRIPT_DIR" << 'PYEOF'
+soma_py - "$EXECUTE" "$SCRIPT_DIR" << 'PYEOF'
 import os, sys, re, json, datetime, shutil
 
 execute_mode = len(sys.argv) > 1 and sys.argv[1] == '--execute'

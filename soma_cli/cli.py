@@ -8,6 +8,27 @@ from __future__ import annotations
 
 import argparse
 import sys
+from pathlib import Path
+
+
+def _version() -> str:
+    version_file = Path(__file__).resolve().parent.parent / "VERSION"
+    if version_file.is_file():
+        try:
+            val = version_file.read_text(encoding="utf-8").strip()
+            if val:
+                return val
+        except OSError:
+            pass
+    try:
+        from importlib.metadata import PackageNotFoundError, version
+        try:
+            return version("soma-governance")
+        except PackageNotFoundError:
+            pass
+    except ImportError:
+        pass
+    return "unknown"
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -15,13 +36,15 @@ def _build_parser() -> argparse.ArgumentParser:
         prog="soma",
         description="Soma Governance — make AI coding agents trustworthy",
     )
+    parser.add_argument("--version", action="version",
+                        version=f"soma {_version()}")
     sub = parser.add_subparsers(dest="command")
 
     # soma init
     p_init = sub.add_parser("init", help="Set up governance for this project")
     p_init.add_argument("--dry-run", action="store_true",
                         help="Show what would be installed without doing it")
-    p_init.add_argument("--platform", choices=["gemini", "claude", "cursor", "copilot"],
+    p_init.add_argument("--platform", choices=["gemini", "claude", "cursor", "copilot", "kiro"],
                         help="Skip platform detection, force a platform")
     p_init.add_argument("--rules", choices=["minimal", "standard", "full"],
                         default="standard",
@@ -42,7 +65,12 @@ def _build_parser() -> argparse.ArgumentParser:
                           help="Session index (default: latest)")
 
     # soma doctor
-    sub.add_parser("doctor", help="System health check")
+    p_doctor = sub.add_parser("doctor", help="System health check")
+    p_doctor.add_argument("--fix-path", action="store_true",
+                          help="Add soma's scripts directory to your shell startup file "
+                               "(dry run unless confirmed or --yes; zsh/bash/fish only)")
+    p_doctor.add_argument("--yes", "-y", action="store_true",
+                          help="With --fix-path: apply without asking")
 
     # soma verify
     p_verify = sub.add_parser("verify", help="Run verification on changed files")
@@ -117,6 +145,12 @@ def _build_parser() -> argparse.ArgumentParser:
     p_genesis.add_argument("--project-root", default=None,
                            help="Override project root path")
 
+    # soma completion
+    from soma_cli.completion import SHELLS
+    p_completion = sub.add_parser("completion", help="Print a shell completion script")
+    p_completion.add_argument("shell", choices=list(SHELLS),
+                              help="Target shell")
+
     return parser
 
 
@@ -186,6 +220,12 @@ def cmd_genesis(args: argparse.Namespace) -> int:
     return run_genesis(args)
 
 
+def cmd_completion(args: argparse.Namespace) -> int:
+    """Print a shell completion script."""
+    from soma_cli.completion import run_completion
+    return run_completion(args)
+
+
 COMMANDS = {
     "init": cmd_init,
     "status": cmd_status,
@@ -198,10 +238,16 @@ COMMANDS = {
     "promote": cmd_promote,
     "demote": cmd_demote,
     "genesis": cmd_genesis,
+    "completion": cmd_completion,
 }
 
 
 def main(argv: list[str] | None = None) -> int:
+    # Output uses emoji. On a cp1252 stdout (Windows, redirected) printing
+    # one raised UnicodeEncodeError and the command exited 1 (BUG-012).
+    # stderr already defaults to errors="backslashreplace".
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(errors="replace")
     parser = _build_parser()
     args = parser.parse_args(argv)
 

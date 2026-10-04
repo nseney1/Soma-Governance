@@ -83,6 +83,26 @@ class TestCLIEntryPoint:
         assert "Soma Governance" in proc.stdout
 
 
+class TestNonUtf8Console:
+    """BUG-012: a cp1252 stdout (Windows, redirected output) made `soma
+    status` exit 1 with UnicodeEncodeError on its emoji."""
+
+    def test_status_survives_cp1252_stdout(self, tmp_path):
+        repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        home = tmp_path / "home"
+        home.mkdir()
+        env = dict(os.environ, PYTHONIOENCODING="cp1252", PYTHONPATH=repo_root,
+                   HOME=str(home), USERPROFILE=str(home))
+        proc = subprocess.run(
+            [sys.executable, "-m", "soma_cli.cli", "status"],
+            capture_output=True, encoding="cp1252", errors="replace",
+            timeout=30, cwd=str(tmp_path), env=env,
+        )
+        assert "can't encode" not in proc.stderr, proc.stderr
+        assert proc.returncode == 0, proc.stderr
+        assert proc.stdout.strip()
+
+
 # ── TDD Red Phase: --rules preset tests ────────────────────────────────────
 
 

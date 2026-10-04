@@ -11,6 +11,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/soma_python.sh"
+soma_resolve_python || true
 
 if [[ $# -lt 1 ]]; then
     echo "Usage: $0 <transcript_path>" >&2
@@ -24,11 +26,11 @@ if [[ ! -f "$TRANSCRIPT" ]]; then
     exit 1
 fi
 
-python3 "${SCRIPT_DIR}/fitness_updater.py" "$TRANSCRIPT"
+soma_py "${SCRIPT_DIR}/fitness_updater.py" "$TRANSCRIPT"
 
 # === Evidence enrichment: correlate rule compliance patterns ===
 # evidence_collector.py is a library — invoke via one-liner
-python3 -c "
+soma_py -c "
 import sys, json, os
 sys.path.insert(0, '${SCRIPT_DIR}')
 from evidence_collector import check_compliance, build_observation, aggregate_evidence

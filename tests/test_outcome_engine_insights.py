@@ -202,7 +202,8 @@ class TestInsightCursorDurability:
         path = os.path.join(ws, ".soma", "human_insights.jsonl")
         first = json.dumps(_covered("vacuole-a")) + "\n"
         second = json.dumps(_covered("vacuole-b"))
-        with open(path, "w", encoding="utf-8") as f:
+        # newline="\n": the offset is in bytes, and Windows text mode writes CRLF.
+        with open(path, "w", encoding="utf-8", newline="\n") as f:
             f.write(first + second[:20])  # writer crashed / still mid-append
 
         signals, offset = read_human_insight_signals(ws)

@@ -3,9 +3,10 @@
 # Evaluates governance cells and applies mechanical enforcement blocking.
 set -uo pipefail
 
-# Resolve scripts directory
+# Resolve scripts directory relative to top-level repository root
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 SCRIPT_DIR=""
-for candidate in "vendor/soma/enzymes" ".soma/../vendor/soma/enzymes" "enzymes"; do
+for candidate in "$REPO_ROOT/vendor/soma/enzymes" "$REPO_ROOT/enzymes"; do
     if [ -d "$candidate" ]; then
         SCRIPT_DIR="$candidate"
         break
@@ -15,15 +16,21 @@ done
 if [ -z "$SCRIPT_DIR" ]; then
     exit 0  # No Soma installation found, skip silently
 fi
+if [ ! -f "$SCRIPT_DIR/soma_python.sh" ]; then
+    echo "soma pre-commit: $SCRIPT_DIR/soma_python.sh is missing (older Soma copy?); skipping governance checks. Reinstall Soma to update it." >&2
+    exit 0
+fi
+source "$SCRIPT_DIR/soma_python.sh"
+soma_resolve_python || true
 
 # Run cell scan
-TRIGGERED=$(python3 "$SCRIPT_DIR/cell_scan.py" --json 2>/dev/null || echo '[]')
-COUNT=$(echo "$TRIGGERED" | python3 -c "import sys,json; print(len(json.load(sys.stdin)))" 2>/dev/null || echo 0)
+TRIGGERED=$(soma_py "$SCRIPT_DIR/cell_scan.py" --json 2>/dev/null || echo '[]')
+COUNT=$(echo "$TRIGGERED" | soma_py -c "import sys,json; print(len(json.load(sys.stdin)))" 2>/dev/null || echo 0)
 
 if [ "$COUNT" -gt 0 ]; then
     echo "🧬 Soma: $COUNT governance cell(s) triggered by this commit"
-    python3 "$SCRIPT_DIR/cell_scan.py" 2>/dev/null
-    python3 "$SCRIPT_DIR/cell_quorum.py" 2>/dev/null
+    soma_py "$SCRIPT_DIR/cell_scan.py" 2>/dev/null
+    soma_py "$SCRIPT_DIR/cell_quorum.py" 2>/dev/null
 fi
 
 # Run mechanical enforcement checks
@@ -43,7 +50,7 @@ fi
 # Check coverage on new files
 NEW_FILES=$(git diff --cached --diff-filter=A --name-only 2>/dev/null)
 if [ -n "$NEW_FILES" ]; then
-    python3 -c "
+    soma_py -c "
 import sys, glob, yaml
 from fnmatch import fnmatch
 cells_dir = '.soma/cells'

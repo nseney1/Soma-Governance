@@ -89,6 +89,23 @@ def _open_bug(**overrides):
     return bug
 
 
+def test_error_report_survives_cp1252_stdout(tmp_path):
+    """BUG-012: printing the error report on a cp1252 stdout raised
+    UnicodeEncodeError instead of listing the errors."""
+    import subprocess
+
+    _make_registry(tmp_path, [_open_bug(), _open_bug()])
+    proc = subprocess.run(
+        [sys.executable, os.path.join(REPO_ROOT, "enzymes", "verify_bug_registry.py"),
+         "--workspace", str(tmp_path)],
+        capture_output=True, encoding="cp1252", errors="replace", timeout=60,
+        env=dict(os.environ, PYTHONIOENCODING="cp1252"),
+    )
+    assert "UnicodeEncodeError" not in proc.stderr, proc.stderr
+    assert proc.returncode == 1
+    assert "Duplicate bug ID: BUG-010" in proc.stdout
+
+
 class TestOpenBugs:
     """Open bugs are tracked before a fix exists, so fix fields are not required."""
 
@@ -209,3 +226,89 @@ class TestRegressionTestExecution:
         
         errors = verify_regression_tests(registry, str(tmp_path))
         assert len(errors) == 0, "Should accept passing tests"
+
+
+def _fixed_bug(bug_id, regression_test):
+    return {
+        "id": bug_id, "title": "t", "discovered_in": "v1", "fixed_in": "v2",
+        "root_cause": "path_error", "severity": "low", "affected_files": ["foo.py"],
+        "regression_test": regression_test, "changelog_ref": "v2",
+    }
+
+
+class TestRegressionRunBudget:
+    """One 30 s limit covered the whole batch. Git Bash tests made the batch
+    take ~28 s on Windows, so a clean registry could time out."""
+
+    def _registry_of(self, tmp_path, count):
+        (tmp_path / "test_a.py").write_text(
+            "".join(f"def test_{i}():\n    pass\n" for i in range(count)), encoding="utf-8")
+        bugs = [_fixed_bug(f"BUG-{i:03d}", f"test_a.py::test_{i}") for i in range(count)]
+        return _make_registry(tmp_path, bugs)
+
+    def _batch_taking(self, seconds, monkeypatch):
+        import subprocess
+        import enzymes.verify_bug_registry as vbr
+
+        def fake_run(cmd, **kwargs):
+            if kwargs["timeout"] < seconds:
+                raise subprocess.TimeoutExpired(cmd, kwargs["timeout"])
+            return subprocess.CompletedProcess(cmd, 0, stdout="3 passed\n", stderr="")
+        monkeypatch.setattr(vbr.subprocess, "run", fake_run)
+
+    def test_batch_slower_than_30s_within_budget_passes(self, tmp_path, monkeypatch):
+        registry = self._registry_of(tmp_path, 3)
+        self._batch_taking(45, monkeypatch)
+        assert verify_regression_tests(registry, str(tmp_path)) == []
+
+    def test_budget_grows_with_the_registry(self, tmp_path, monkeypatch):
+        # Longer than a 3-test registry is allowed (see the next test).
+        registry = self._registry_of(tmp_path, 40)
+        self._batch_taking(200, monkeypatch)
+        assert verify_regression_tests(registry, str(tmp_path)) == []
+
+    def test_hung_batch_reports_timeout_with_its_limit(self, tmp_path, monkeypatch):
+        registry = self._registry_of(tmp_path, 3)
+        self._batch_taking(10_000, monkeypatch)
+        errors = verify_regression_tests(registry, str(tmp_path))
+        assert len(errors) == 1
+        assert "Timeout" in errors[0]
+        assert "3 regression tests" in errors[0]
+        assert "75 s" in errors[0]
+
+
+class TestRegressionFailureAttribution:
+    """A failure was pinned on every bug whose test name appeared anywhere in
+    pytest's output, so test_check_more failing also blamed test_check."""
+
+    def test_failure_blames_only_the_failing_bug(self, tmp_path):
+        (tmp_path / "test_x.py").write_text(
+            "def test_check():\n    pass\n\n"
+            "def test_check_more():\n    assert False\n", encoding="utf-8")
+        registry = _make_registry(tmp_path, [
+            _fixed_bug("BUG-010", "test_x.py::test_check"),
+            _fixed_bug("BUG-011", "test_x.py::test_check_more"),
+        ])
+        errors = verify_regression_tests(registry, str(tmp_path))
+        assert "BUG-011: regression test failed: test_x.py::test_check_more" in errors
+        assert not any(e.startswith("BUG-010") for e in errors), errors
+
+    def test_failing_parameter_blames_its_bug(self, tmp_path):
+        (tmp_path / "test_p.py").write_text(
+            "import pytest\n\n"
+            "@pytest.mark.parametrize('n', [1, 2])\n"
+            "def test_param(n):\n    assert n == 1\n", encoding="utf-8")
+        registry = _make_registry(tmp_path, [_fixed_bug("BUG-012", "test_p.py::test_param")])
+        errors = verify_regression_tests(registry, str(tmp_path))
+        assert "BUG-012: regression test failed: test_p.py::test_param" in errors
+
+    def test_collection_error_blames_bugs_in_that_file(self, tmp_path):
+        (tmp_path / "test_ok.py").write_text("def test_ok():\n    pass\n", encoding="utf-8")
+        (tmp_path / "test_broken.py").write_text("def test_b(:\n    pass\n", encoding="utf-8")
+        registry = _make_registry(tmp_path, [
+            _fixed_bug("BUG-013", "test_ok.py::test_ok"),
+            _fixed_bug("BUG-014", "test_broken.py::test_b"),
+        ])
+        errors = verify_regression_tests(registry, str(tmp_path))
+        assert "BUG-014: regression test failed: test_broken.py::test_b" in errors
+        assert not any(e.startswith("BUG-013") for e in errors), errors

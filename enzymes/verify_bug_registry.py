@@ -84,6 +84,25 @@ def verify_schema(registry: dict) -> list[str]:
     return errors
 
 
+def _failed_node_ids(pytest_stdout: str) -> list[str]:
+    """Node IDs from pytest's `FAILED <id> - ...` / `ERROR <id>` summary lines."""
+    nodes = []
+    for line in pytest_stdout.splitlines():
+        parts = line.split()
+        if len(parts) >= 2 and parts[0] in ('FAILED', 'ERROR'):
+            nodes.append(parts[1])
+    return nodes
+
+
+def _node_matches(node: str, test_ref: str) -> bool:
+    # A ref may name a whole parametrized test or a class; matching by name
+    # substring blamed test_check for a test_check_more failure.
+    if node == test_ref or node.startswith((test_ref + '[', test_ref + '::')):
+        return True
+    # A collection error is reported against the file alone.
+    return '::' not in node and test_ref.split('::')[0] == node
+
+
 def verify_regression_tests(registry: dict, workspace: str) -> list[str]:
     """Verify each bug's regression test exists and can be collected by pytest."""
     errors = []
@@ -110,21 +129,23 @@ def verify_regression_tests(registry: dict, workspace: str) -> list[str]:
     # Batch verify: run all test IDs to prove they pass.
     if test_ids:
         all_refs = [ref for _, ref in test_ids]
+        # A fixed 30 s limit for the whole batch was nearly used up on Windows,
+        # where tests that spawn Git Bash take seconds each. The budget
+        # grows with the registry and still catches a hung test.
+        budget = 60 + 5 * len(all_refs)
         try:
             result = subprocess.run(
-                [sys.executable, '-m', 'pytest', '-q'] + all_refs,
-                capture_output=True, text=True, cwd=workspace, timeout=30,
+                [sys.executable, '-m', 'pytest', '-q', '-rfE'] + all_refs,
+                capture_output=True, text=True, cwd=workspace, timeout=budget,
             )
             if result.returncode != 0:
-                # If tests failed, report which ones
                 errors.append(f"Regression tests failed (exit code {result.returncode})")
-                # Try to parse the failed tests from stdout
+                failed = _failed_node_ids(result.stdout)
                 for bug_id, test_ref in test_ids:
-                    test_name = test_ref.split('::')[-1]
-                    if test_name in result.stdout and ("FAILED" in result.stdout or "FAILURES" in result.stdout):
+                    if any(_node_matches(node, test_ref) for node in failed):
                         errors.append(f"{bug_id}: regression test failed: {test_ref}")
         except subprocess.TimeoutExpired:
-            errors.append("Timeout running regression tests")
+            errors.append(f"Timeout running {len(all_refs)} regression tests (limit {budget} s)")
         except Exception as e:
             errors.append(f"Error running tests: {e}")
 
@@ -144,6 +165,10 @@ def verify_unique_ids(registry: dict) -> list[str]:
 
 
 def main():
+    # The report uses non-ASCII symbols; a cp1252 stdout raised
+    # UnicodeEncodeError instead of listing the errors (BUG-012).
+    if hasattr(sys.stdout, 'reconfigure'):
+        sys.stdout.reconfigure(errors='replace')
     workspace = '.'
     if '--workspace' in sys.argv:
         idx = sys.argv.index('--workspace')
