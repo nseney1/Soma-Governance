@@ -1220,6 +1220,34 @@ class TestReleaseGateCheck:
         assert passed is True
         assert "PASS" in msg
 
+    def test_verify_release_gate_fails_when_diff_tree_returns_error(self, tmp_path, monkeypatch):
+        """verify_release_gate fails closed when diff-tree returns non-zero returncode."""
+        from soma_cli.verify import verify_release_gate
+        import subprocess
+
+        def mock_evidence(root):
+            return 1, {
+                "verdict": "ship",
+                "target_files": ["soma_core/runner.py"],
+                "tree_hash": "tree_receipt_111",
+            }
+        monkeypatch.setattr("soma_core.verification.review_adapter.get_latest_arbitration_evidence", mock_evidence)
+
+        def mock_git(cmd, *args, **kwargs):
+            if isinstance(cmd, list):
+                if cmd[1] == "status":
+                    return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+                if cmd[1] == "rev-parse":
+                    return subprocess.CompletedProcess(cmd, 0, stdout="tree_current_222\n", stderr="")
+                if cmd[1] == "diff-tree":
+                    return subprocess.CompletedProcess(cmd, 1, stdout="", stderr="fatal: corrupt tree")
+            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+        monkeypatch.setattr(subprocess, "run", mock_git)
+
+        passed, msg = verify_release_gate(str(tmp_path))
+        assert passed is False
+        assert "Tree hash mismatch" in msg
+
     def test_verify_release_gate_fails_when_working_tree_dirty(self, tmp_path, monkeypatch):
         """verify_release_gate fails closed if uncommitted/unstaged changes exist."""
         from soma_cli.verify import verify_release_gate
