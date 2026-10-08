@@ -4,12 +4,12 @@
 
 ## Documentation by Audience
 
-### 👤 Users & Agent Developers
-- [Quickstart](../QUICKSTART.md)
-- [CLI Reference](../README.md#cli-commands)
-- [Python SDK overview](../README.md#sdk)
-- [MCP Integration](../README.md#mcp-server-recommended)
-- Planned for v1.0: standalone user guides for the CLI, SDK, and MCP integration
+### 👤 Guides & Core Architecture
+- [Quickstart](../QUICKSTART.md) — 30-second setup and onboarding
+- [MCP Gateway Guide](guides/mcp_gateway.md) — Dual-plane architecture, tool tiers, and security
+- [Verification Pipeline](guides/verification_pipeline.md) — Dual-layer closed loop, AST tools, and Gate 4.5
+- [Cell Lifecycle](guides/cell_lifecycle.md) — Evolutionary biological rules, SomaYAML, and Bayesian fitness
+- [Skill Graph](guides/skill_graph.md) — Horizontal capability graph, typed handoffs, and scale-to-zero memory
 
 ### 🏗️ Architecture & Design
 - [Mechanism Design](architecture/mechanism_design.md) — Formal economic mapping
@@ -17,6 +17,7 @@
 - [Scripts & Tools](architecture/scripts.md) — Internal enzyme, verification, SDK, and MCP module index
 
 ### 🤝 Contributors & Maintainers
+- [Compatibility Guarantee](project/COMPATIBILITY.md) — SemVer 2.0 stability and deprecation guarantees
 - [Contributing](project/CONTRIBUTING.md) — Contribution guidelines and test standards
 - [Changelog](project/CHANGELOG.md) — Full release history
 - [Roadmap](project/ROADMAP.md) — Phased milestones and claim tracking

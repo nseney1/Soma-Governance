@@ -3,6 +3,33 @@
 All notable changes to Soma are documented here.
 This project uses [Semantic Versioning](https://semver.org/).
 
+## [1.0.0] — 2026-10-08 — "General Availability & Production Governance Framework"
+
+### Production GA, Documentation Portal & Formal Backwards Compatibility
+- **Lean Documentation Portal (< 200 Lines)**:
+  - Restructures root `README.md` into an immediate, above-the-fold portal with 30-second quickstart, closed-loop architecture diagram, and deep-dive documentation guide cards.
+- **Production Architecture & Operations Guides (`docs/guides/`)**:
+  - `docs/guides/mcp_gateway.md`: Dual-Plane Gateway architecture, tool tiers, receipt security, and opt-in projection.
+  - `docs/guides/verification_pipeline.md`: Two-Layer Verification engine, deterministic Layer 1 AST checks, Layer 2 Adversarial Rebuttal, and Gate 4.5.
+  - `docs/guides/cell_lifecycle.md`: Five cell types, evolutionary lifecycle, Wilson-bounded fitness scoring, and zero-touch decay.
+  - `docs/guides/skill_graph.md`: Horizontal skill graph, typed envelopes (<150 tokens), and file-buffered handoffs.
+- **SemVer 2.0 Backwards Compatibility Guarantee (`docs/project/COMPATIBILITY.md`)**:
+  - Codifies formal public API contracts across CLI, Python SDK (`soma_sdk`), MCP Server (`soma_mcp`), and Core Governance schemas starting at `v1.0.0`.
+- **Checkpoint Candidate Resolution**:
+  - Updates verification test candidate resolution in `soma_core/verification/checkpoint_checks.py` to recognize relocated domain hierarchy suites.
+
+## [0.123.0] — 2026-10-08 — "Test Suite Consolidation & Hard Cleanse"
+
+### Test Suite Architecture & Hard Cleanse
+- **Hierarchical Domain Test Suite**:
+  - Relocated 191 flat test files into domain hierarchy: `tests/unit/core/`, `tests/unit/verification/`, `tests/unit/cli/`, `tests/unit/mcp/`, `tests/unit/sdk/`, and `tests/integration/`.
+  - Removed legacy `tests/test_verification/` directory.
+- **Canonical Evidence and Test Discovery**:
+  - Synchronized all 83 entries in `docs/project/BUG_REGISTRY.json` and 23 entries in `docs/project/CLAIM_REGISTRY.json`.
+  - Unified test discovery across runner and verify CLI using recursive domain globbing.
+- **Hermetic Isolation Fixtures**:
+  - Configured global `autouse=True` fixture in single canonical `tests/conftest.py` ensuring complete environment and singleton isolation across test runs.
+
 ## [0.122.0] — 2026-10-08 — "Zero-Dependency SomaYAML, Horizontal Skill Graph, Response Projection & Lean Gateway"
 
 ### Core Architecture, Swarm Protocols & Gateway Optimization

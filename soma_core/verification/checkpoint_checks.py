@@ -197,6 +197,8 @@ def _resolve_canonical_test_candidates(root: Path, source_file: Path) -> list[Pa
         candidates.append(test_dir / "test_checkpoint_fail_closed.py")
     if stem in ("call_graph", "persistence_checker", "runner"):
         candidates.append(test_dir / "test_verification" / "test_layer1.py")
+        candidates.append(test_dir / "unit" / "verification" / "test_layer1.py")
+        candidates.append(test_dir / "unit" / "verification" / "test_call_graph_ast.py")
     if stem == "hooks":
         candidates.append(test_dir / "test_hooks_lifecycle.py")
     if stem == "errors":

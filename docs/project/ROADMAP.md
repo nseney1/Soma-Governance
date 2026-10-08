@@ -334,17 +334,23 @@ The designated clean-slate release. Purged all accumulated rapid-iteration backw
 **Status**: ✅ Shipped (v0.121.0)  
 Unifies all verification surfaces onto `VerificationPipeline` as the single canonical execution engine across CLI and MCP. Eliminates the split-brain architecture between `runner.py` and `pipeline.py` by converting `runner.run_layer2()` into a thin forwarding facade. Enforces fail-closed Layer 2 arbitration guarantees, real-time closed-loop repair loops (`--repair`), dynamic branch baseline discovery via `GITHUB_BASE_REF`, and cross-version Python 3.9 branch coverage resilience.
 
-## Phase 25 — v0.122.0 (Planned)
+## Phase 25 — v0.122.0 ✅ Shipped
 
-### Documentation Architecture, Developer Experience & Compatibility Contract
-**Status**: 📋 Planned (v0.122.0)  
-Re-architects project documentation for developer discoverability and SEO optimization above the fold (30-second Quickstart with Genesis auto-scan and direct hook install). Deconstructs monolithic README into modular deep-dive guides (`docs/architecture/salience_and_evolution.md`, `docs/architecture/dual_mode_verifier.md`, `docs/guides/mcp_integration.md`, `docs/guides/multi_repo_worktrees.md`, `docs/guides/authoring_cells.md`). Publishes official Backwards Compatibility Guarantee starting from `v0.120.0`. Re-aligns and automates verification across `CLAIM_REGISTRY.json` and single-source versioning surfaces.
+### Zero-Dependency SomaYAML, Horizontal Skill Graph, Response Projection & Lean Gateway
+**Status**: ✅ Shipped (v0.122.0)  
+Pure standard library recursive-descent YAML frontmatter parser (`soma_core/somayaml.py`). Skill graph, fail-closed slot resolution, typed envelopes (<150 tokens), and file-buffered handoff tickets (`soma_core/skills/`). Dual-Plane MCP Gateway decomposition (`soma_mcp/`) into Control Plane (`registry.py`), Execution Plane (`handlers/`), and lean router (`tools.py`). Response projection and secret scrubbing (`soma_mcp/projection.py`).
 
-## Phase 26 — v1.0.0 (Planned)
+## Phase 25.5 — v0.123.0 ✅ Shipped
 
-### Production GA Hardening & Multi-Lens Staff Review
-**Status**: 📋 Planned (v1.0.0)  
-Exhaustive, multi-perspective production readiness review across security, correctness, test integrity, and end-to-end behavior. Conducts 4 orthogonal review lenses (Security & Confinement Audit, Invariants & Edge Cases, Test Suite Integrity & Flakiness Sweep, Behavioral Ergonomics & API Contract). Addresses and resolves every identified issue through strict TDD. Delivers a bulletproof, zero-deadwood, enterprise-ready v1.0.0 General Availability release.
+### Test Suite Consolidation & Hard Cleanse
+**Status**: ✅ Shipped (v0.123.0)  
+Relocated 191 test files into domain hierarchy: `tests/unit/core/`, `tests/unit/verification/`, `tests/unit/cli/`, `tests/unit/mcp/`, `tests/unit/sdk/`, and `tests/integration/`. Atomic synchronization of all 83 entries in `BUG_REGISTRY.json` and 23 entries in `CLAIM_REGISTRY.json`. Hermetic isolation fixtures in single canonical `tests/conftest.py`.
+
+## Phase 26 — v1.0.0 ✅ Shipped
+
+### Production GA, Documentation Portal & SemVer 2.0 Compatibility Guarantee
+**Status**: ✅ Shipped (v1.0.0)  
+Restructures root `README.md` into a lean documentation portal (< 200 lines) with interactive closed-loop diagram, 30-second quickstart, and comprehensive production guides (`docs/guides/mcp_gateway.md`, `docs/guides/verification_pipeline.md`, `docs/guides/cell_lifecycle.md`, `docs/guides/skill_graph.md`). Formal SemVer 2.0 Backwards Compatibility Guarantee published in `docs/project/COMPATIBILITY.md`.
 
 ## Research
 
