@@ -148,81 +148,10 @@ def resolve_target_files(args: argparse.Namespace) -> list[str]:
 def discover_test_evidence(target_files: list[str], repo_root: str) -> tuple[list[str], str]:
     """Discover matching test files, parse test names via AST, and execute tests.
 
-    Returns (test_names, test_results).
+    Delegates to canonical soma_core.verification.test_runner.discover_test_evidence.
     """
-    import ast
-    all_test_names: list[str] = []
-    discovered_test_files: list[str] = []
-
-    for tf in target_files:
-        full_path = os.path.join(repo_root, tf) if not os.path.isabs(tf) else tf
-        basename = os.path.basename(full_path)
-        if basename.startswith("test_") and basename.endswith(".py"):
-            if os.path.isfile(full_path) and full_path not in discovered_test_files:
-                discovered_test_files.append(full_path)
-            continue
-
-        stem = os.path.splitext(basename)[0]
-        # Candidate test file locations
-        candidates = [
-            os.path.join(repo_root, os.path.dirname(tf), f"test_{stem}.py"),
-            os.path.join(repo_root, "tests", f"test_{stem}.py"),
-            os.path.join(repo_root, f"test_{stem}.py"),
-        ]
-        # Also check tests/ directory matching prefix
-        tests_dir = os.path.join(repo_root, "tests")
-        if os.path.isdir(tests_dir):
-            try:
-                for fname in os.listdir(tests_dir):
-                    if fname.startswith(f"test_{stem}") and fname.endswith(".py"):
-                        candidates.append(os.path.join(tests_dir, fname))
-            except OSError:
-                pass
-
-        for cand in candidates:
-            if os.path.isfile(cand) and cand not in discovered_test_files:
-                discovered_test_files.append(cand)
-
-    for test_file in discovered_test_files:
-        try:
-            with open(test_file, "r", encoding="utf-8", errors="ignore") as f:
-                tree = ast.parse(f.read())
-            for node in ast.walk(tree):
-                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                    if node.name.startswith("test_") and node.name not in all_test_names:
-                        all_test_names.append(node.name)
-        except Exception:
-            continue
-
-    if not discovered_test_files:
-        return ([], "")
-
-    from soma_core.verification.test_runner import resolve_pytest_cmd, NoTestRunnerFoundError
-
-    pytest_cmd = resolve_pytest_cmd(workspace=repo_root)
-    if not pytest_cmd:
-        raise NoTestRunnerFoundError(
-            f"Found {len(discovered_test_files)} associated test file(s) for changed targets, "
-            "but no pytest runner was discovered on PATH or in virtual environment."
-        )
-
-    # Run tests with resolved pytest command
-    run_outputs = []
-    for test_file in discovered_test_files:
-        try:
-            res = subprocess.run(
-                pytest_cmd + [test_file, "-q", "--tb=no"],
-                capture_output=True,
-                text=True,
-                timeout=15,
-                cwd=repo_root,
-            )
-            out = (res.stdout or "") + (res.stderr or "")
-            run_outputs.append(f"[{os.path.basename(test_file)}]\n{out.strip()}")
-        except Exception as e:
-            run_outputs.append(f"[{os.path.basename(test_file)}] error: {e}")
-
-    return (all_test_names, "\n\n".join(run_outputs))
+    from soma_core.verification.test_runner import discover_test_evidence as _core_discover
+    return _core_discover(target_files, repo_root)
 
 
 # ── Plan & Provider Resolution ────────────────────────────────────────

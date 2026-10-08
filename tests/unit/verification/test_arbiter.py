@@ -1,0 +1,309 @@
+from pathlib import Path
+"""TDD tests for the two-layer verification framework.
+
+Uses v0.30 bugs as ground truth:
+- last_decay_epoch persistence gap
+- Dead NEW/DORMANT branches
+- Tautological Bayesian tests
+- Unwired apply_decay in --local
+
+Each test constructs the exact predictions/claims/evidence that
+our agents would have produced, then verifies the Arbiter catches it.
+"""
+import os
+import sys
+
+import pytest
+
+REPO_ROOT = str(next(p for p in Path(__file__).resolve().parents if (p / "pyproject.toml").exists()))
+sys.path.insert(0, REPO_ROOT)
+
+from soma_core.verification import (
+    ArbitrationResult, Claim, Prediction, RiskCategory,
+    Severity, ToolEvidence, Verdict,
+)
+from soma_core.verification.arbiter import arbitrate, format_report
+
+
+# ── Arbiter: Core Set Logic ───────────────────────────────────────────────
+
+class TestArbiterSetLogic:
+    """Verify the Arbiter produces correct divergences from set operations."""
+
+    def test_full_convergence_ships(self):
+        """When predictions match claims and Layer 1 passes → SHIP."""
+        predictions = [
+            Prediction(RiskCategory.PERSISTENCE_GAP, Severity.CRITICAL,
+                       "Epoch might not persist", "In-memory only", "apply_decay")
+        ]
+        claims = [
+            Claim(RiskCategory.PERSISTENCE_GAP,
+                  "Epoch persisted via frontmatter writer",
+                  "cell_promote.py", 217, ["test_idempotent"])
+        ]
+        evidence = [
+            ToolEvidence("persistence_checker", "cell_promote.py:fitness",
+                         True, "All keys serialized")
+        ]
+
+        result = arbitrate(predictions, claims, evidence)
+        assert result.verdict == Verdict.SHIP
+        assert RiskCategory.PERSISTENCE_GAP in result.convergences
+        assert len(result.divergences) == 0
+
+    def test_unmatched_prediction_warns(self):
+        """Spec Agent predicts a risk Code Agent didn't address → REVISE."""
+        predictions = [
+            Prediction(RiskCategory.IDEMPOTENCY_VIOLATION, Severity.HIGH,
+                       "Decay could apply twice", "No epoch guard", "apply_decay")
+        ]
+        claims = []  # Code Agent didn't address this
+        evidence = []
+
+        result = arbitrate(predictions, claims, evidence)
+        assert result.verdict == Verdict.REVISE
+        assert len(result.divergences) == 1
+        assert result.divergences[0].divergence_type == "unmatched_prediction"
+
+    def test_contradicted_claim_blocks(self):
+        """Code Agent claims X, Layer 1 says ¬X → BLOCK."""
+        predictions = []
+        claims = [
+            Claim(RiskCategory.PERSISTENCE_GAP,
+                  "All fitness keys are persisted",
+                  "cell_promote.py", 215, [])
+        ]
+        evidence = [
+            ToolEvidence("persistence_checker", "cell_promote.py:fitness",
+                         False, "last_decay_epoch mutated but never serialized",
+                         [42, 56])
+        ]
+
+        result = arbitrate(predictions, claims, evidence)
+        assert result.verdict == Verdict.BLOCK
+        assert len(result.divergences) == 1
+        assert result.divergences[0].divergence_type == "contradicted_claim"
+
+    def test_confirmed_risk_blocks(self):
+        """Both agents address a risk but Layer 1 confirms it's real → BLOCK."""
+        predictions = [
+            Prediction(RiskCategory.PERSISTENCE_GAP, Severity.CRITICAL,
+                       "Epoch not persisted across CLI runs",
+                       "In-memory guard bypassed on restart", "apply_decay")
+        ]
+        claims = [
+            Claim(RiskCategory.PERSISTENCE_GAP,
+                  "Epoch persisted via last_decay_epoch field",
+                  "cell_promote.py", 35, ["test_consecutive_decay_is_noop"])
+        ]
+        evidence = [
+            ToolEvidence("persistence_checker", "cell_promote.py:fitness",
+                         False, "last_decay_epoch mutated at L42,56 but not serialized",
+                         [42, 56])
+        ]
+
+        result = arbitrate(predictions, claims, evidence)
+        assert result.verdict == Verdict.BLOCK
+        assert len(result.divergences) == 1
+        assert result.divergences[0].divergence_type == "confirmed_risk"
+        assert result.divergences[0].tool_evidence is not None
+
+    def test_undetected_by_both_blocks(self):
+        """Neither agent caught it but Layer 1 did → BLOCK with 'undetected_by_both'."""
+        predictions = []
+        claims = []
+        evidence = [
+            ToolEvidence("persistence_checker", "cell_promote.py:fitness",
+                         False, "last_decay_epoch gap", [42])
+        ]
+
+        result = arbitrate(predictions, claims, evidence)
+        assert result.verdict == Verdict.BLOCK
+        assert any(d.divergence_type == "undetected_by_both" for d in result.divergences)
+
+    def test_low_severity_unmatched_ships(self):
+        """Low-severity unmatched prediction should not block shipping."""
+        predictions = [
+            Prediction(RiskCategory.OVERFLOW, Severity.LOW,
+                       "Possible overflow in trigger count", "Unlikely", "apply_decay")
+        ]
+        claims = []
+        evidence = []
+
+        result = arbitrate(predictions, claims, evidence)
+        assert result.verdict == Verdict.SHIP
+
+    def test_multiple_categories_mixed(self):
+        """Multiple categories: some converge, some diverge."""
+        predictions = [
+            Prediction(RiskCategory.PERSISTENCE_GAP, Severity.CRITICAL,
+                       "Epoch gap", "In-memory only", "apply_decay"),
+            Prediction(RiskCategory.UNGUARDED_TRANSITION, Severity.HIGH,
+                       "Zero-trigger promotion", "impact_weight inflation", "promote"),
+        ]
+        claims = [
+            Claim(RiskCategory.PERSISTENCE_GAP,
+                  "Epoch persisted", "cell_promote.py", 217, []),
+            Claim(RiskCategory.UNGUARDED_TRANSITION,
+                  "Triggers > 0 guard", "cell_fitness.py", 278, []),
+        ]
+        evidence = [
+            ToolEvidence("persistence_checker", "cell_promote.py:fitness",
+                         True, "All keys serialized"),
+        ]
+
+        result = arbitrate(predictions, claims, evidence)
+        assert result.verdict == Verdict.SHIP
+        assert RiskCategory.PERSISTENCE_GAP in result.convergences
+        assert RiskCategory.UNGUARDED_TRANSITION in result.convergences
+
+
+# ── Arbiter: v0.30 Ground Truth ───────────────────────────────────────────
+
+class TestArbiterV030GroundTruth:
+    """Replay the actual v0.30 bugs through the Arbiter and verify detection."""
+
+    def test_epoch_bug_detected(self):
+        """The epoch persistence bug (pre-fix) should produce BLOCK verdict."""
+        # What the Spec Agent would predict from plan alone
+        predictions = [
+            Prediction(RiskCategory.PERSISTENCE_GAP, Severity.CRITICAL,
+                       "last_decay_epoch might not survive process restart",
+                       "apply_decay sets fitness['last_decay_epoch'] in memory, "
+                       "but frontmatter writer only handles triggers/tp/fp/score",
+                       "apply_decay"),
+        ]
+        # What the Code Agent would claim from reading the code
+        claims = [
+            Claim(RiskCategory.PERSISTENCE_GAP,
+                  "Decay is idempotent via last_decay_epoch check at L31-35",
+                  "enzymes/cell_promote.py", 35,
+                  ["test_consecutive_decay_is_noop", "test_decay_applies_after_gap"]),
+        ]
+        # What the persistence_checker would produce (pre-fix)
+        evidence = [
+            ToolEvidence("persistence_checker", "cell_promote.py:fitness",
+                         False,
+                         "PERSISTENCE GAP: last_decay_epoch assigned at L42,56 "
+                         "but no startswith('last_decay_epoch:') in serializer",
+                         [42, 56]),
+        ]
+
+        result = arbitrate(predictions, claims, evidence)
+        assert result.verdict == Verdict.BLOCK
+        assert result.divergences[0].divergence_type == "confirmed_risk"
+        assert result.divergences[0].prediction.category == RiskCategory.PERSISTENCE_GAP
+
+    def test_dead_code_detected(self):
+        """Dead NEW/DORMANT branches should be caught by branch_coverage tool."""
+        predictions = [
+            Prediction(RiskCategory.DEAD_CODE, Severity.HIGH,
+                       "NEW/DORMANT status might be unreachable",
+                       "If dec_score is always not-None for zero-trigger cells, "
+                       "the else branch at L189 is dead code",
+                       "classify_status"),
+        ]
+        claims = []  # Code Agent might not address this
+        evidence = [
+            ToolEvidence("branch_coverage", "cell_fitness.py:179-202",
+                         False, "Lines 189-198 never executed (0% branch coverage)",
+                         [189, 190, 191, 192, 193, 194, 195, 196, 197, 198]),
+        ]
+
+        result = arbitrate(predictions, claims, evidence)
+        assert result.verdict == Verdict.BLOCK
+
+    def test_post_fix_all_clear(self):
+        """After all v0.30 fixes, the Arbiter should produce SHIP."""
+        predictions = [
+            Prediction(RiskCategory.PERSISTENCE_GAP, Severity.CRITICAL,
+                       "Epoch persistence", "Could fail across processes", "apply_decay"),
+            Prediction(RiskCategory.DEAD_CODE, Severity.HIGH,
+                       "NEW/DORMANT reachability", "Could be dead", "classify_status"),
+            Prediction(RiskCategory.UNGUARDED_TRANSITION, Severity.HIGH,
+                       "Zero-trigger promotion", "impact_weight", "promote"),
+        ]
+        claims = [
+            Claim(RiskCategory.PERSISTENCE_GAP,
+                  "Epoch persisted at L217", "cell_promote.py", 217, ["test_idempotent"]),
+            Claim(RiskCategory.DEAD_CODE,
+                  "is_unobserved guard at L182", "cell_fitness.py", 182, ["test_new_status"]),
+            Claim(RiskCategory.UNGUARDED_TRANSITION,
+                  "triggers > 0 guard at L278", "cell_fitness.py", 278, ["test_promote"]),
+        ]
+        evidence = [
+            ToolEvidence("persistence_checker", "cell_promote.py:fitness",
+                         True, "All 5 keys serialized"),
+            ToolEvidence("branch_coverage", "cell_fitness.py:179-202",
+                         True, "All branches covered"),
+        ]
+
+        result = arbitrate(predictions, claims, evidence)
+        assert result.verdict == Verdict.SHIP
+        assert len(result.convergences) == 3
+
+
+# ── Report Formatting ─────────────────────────────────────────────────────
+
+class TestReportFormatting:
+    """Verify the report is human-readable and contains key information."""
+
+    def test_report_contains_verdict(self):
+        predictions = []
+        claims = []
+        evidence = [
+            ToolEvidence("persistence_checker", "test", True, "OK"),
+        ]
+        result = arbitrate(predictions, claims, evidence)
+        report = format_report(result)
+        assert "SHIP" in report
+
+    def test_report_contains_divergences(self):
+        predictions = [
+            Prediction(RiskCategory.PERSISTENCE_GAP, Severity.CRITICAL,
+                       "Epoch gap", "mechanism", "apply_decay")
+        ]
+        result = arbitrate(predictions, [], [])
+        report = format_report(result)
+        assert "unmatched_prediction" in report
+        assert "persistence_gap" in report
+
+
+# ── Arbiter: Fail-Closed on Spec Agent Failure ────────────────────────────
+
+class TestArbiterFailClosed:
+    """Verify the Arbiter blocks when the Spec Agent fails to produce output."""
+
+    def test_spec_agent_failed_empty_predictions_blocks(self):
+        """When spec_agent_failed=True and predictions are empty → BLOCK."""
+        result = arbitrate(
+            predictions=[],
+            claims=[],
+            layer1_evidence=[
+                ToolEvidence("persistence_checker", "test", True, "OK"),
+            ],
+            spec_agent_failed=True,
+        )
+        assert result.verdict == Verdict.BLOCK
+
+    def test_spec_agent_not_failed_empty_predictions_ships(self):
+        """Default spec_agent_failed=False with no predictions → SHIP (existing behavior)."""
+        result = arbitrate(
+            predictions=[],
+            claims=[],
+            layer1_evidence=[
+                ToolEvidence("persistence_checker", "test", True, "OK"),
+            ],
+        )
+        assert result.verdict == Verdict.SHIP
+
+    def test_spec_agent_failed_false_explicit_ships(self):
+        """Explicit spec_agent_failed=False with no predictions → SHIP."""
+        result = arbitrate(
+            predictions=[],
+            claims=[],
+            layer1_evidence=[],
+            spec_agent_failed=False,
+        )
+        assert result.verdict == Verdict.SHIP
+

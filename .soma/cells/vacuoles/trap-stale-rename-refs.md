@@ -26,10 +26,10 @@ tags:
 fitness:
   score: 0.5
   impact_weight: 1.0
-  triggers: 36
-  true_positives: 10.7264
-  false_positives: 14.5782
-  last_trigger_date: "2026-10-08T07:49:25Z"
+  triggers: 38
+  true_positives: 11.3461
+  false_positives: 15.1979
+  last_trigger_date: "2026-10-08T09:12:32Z"
 ---
 
 After the Phase 22 Soma Rebirth rename, multiple stale references survived:

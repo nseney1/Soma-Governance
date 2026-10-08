@@ -11,7 +11,7 @@ falsification: 0 findings in 10 sessions → prune
 target_paths:
   - ".soma/cells/**/*.md"
   - "genome/*.md"
-  - tests/test_rule_metadata.py
+  - tests/unit/core/test_rule_metadata.py
 triggers:
   - cell_creation
   - cell_type_addition
@@ -27,10 +27,10 @@ tags:
 fitness:
   score: 0.5
   impact_weight: 0.9
-  triggers: 34
-  true_positives: 13
-  false_positives: 18.75
-  last_trigger_date: "2026-10-08T07:49:25Z"
+  triggers: 36
+  true_positives: 14
+  false_positives: 19.25
+  last_trigger_date: "2026-10-08T09:12:32Z"
 ---
 
 Every cell subdirectory under `.soma/cells/` (vacuoles, walls, membranes,

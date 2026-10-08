@@ -108,3 +108,24 @@ def harness(tmp_path):
     except ImportError:
         from tests.harness import SomaTestHarness
     return SomaTestHarness(tmp_path)
+
+
+@pytest.fixture(autouse=True)
+def hermetic_environment_and_mcp_isolation():
+    """Restore os.environ and reset MCP server singletons between tests."""
+    old_env = dict(os.environ)
+    yield
+    # Restore os.environ
+    os.environ.clear()
+    os.environ.update(old_env)
+
+    # Reset MCP server singletons if soma_mcp.server is loaded
+    if "soma_mcp.server" in sys.modules:
+        mcp_server = sys.modules["soma_mcp.server"]
+        if hasattr(mcp_server, "_session_tokens") and isinstance(mcp_server._session_tokens, set):
+            mcp_server._session_tokens.clear()
+        if hasattr(mcp_server, "_tool_call_times") and hasattr(mcp_server._tool_call_times, "clear"):
+            mcp_server._tool_call_times.clear()
+        if hasattr(mcp_server, "_session_token"):
+            mcp_server._session_token = None
+

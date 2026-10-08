@@ -7,7 +7,7 @@ hypothesis: "When consistency tests are added for one pair of documentation surf
 prediction: Will fire when a test file checks consistency between 2 sources but a 3rd related source exists untested
 falsification: 0 findings in 20 sessions → prune
 target_paths:
-  - "tests/test_*.py"
+  - "tests/**/test_*.py"
 triggers:
   - test_creation
   - documentation_edit

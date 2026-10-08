@@ -29,30 +29,38 @@ def _find_test_file(filepath: str, repo_root: str) -> Optional[str]:
       6. Domain mappings (e.g. runner.py -> test_verification/test_layer1.py)
     """
     norm = filepath.replace("\\", "/")
+    def _find_in_tests(*names: str) -> Optional[str]:
+        for name in names:
+            for prefix in ("", "unit/mcp", "unit/core", "unit/cli", "unit/verification", "unit/sdk", "integration"):
+                p = os.path.join(repo_root, "tests", prefix, name) if prefix else os.path.join(repo_root, "tests", name)
+                if os.path.isfile(p):
+                    return p
+        return None
+
     if "soma_mcp/handlers" in norm:
-        cand = os.path.join(repo_root, "tests", "test_mcp_handlers.py")
-        if os.path.isfile(cand):
-            return cand
+        found = _find_in_tests("test_mcp_handlers.py")
+        if found:
+            return found
     if "soma_core/outcomes/harvest.py" in norm:
-        cand = os.path.join(repo_root, "tests", "test_git_retro_harvest.py")
-        if os.path.isfile(cand):
-            return cand
+        found = _find_in_tests("test_git_retro_harvest.py")
+        if found:
+            return found
     if "soma_core/outcomes/insights.py" in norm:
-        cand = os.path.join(repo_root, "tests", "test_outcomes_insights.py")
-        if os.path.isfile(cand):
-            return cand
+        found = _find_in_tests("test_outcomes_insights.py")
+        if found:
+            return found
     if "soma_core/outcomes/telemetry.py" in norm:
-        cand = os.path.join(repo_root, "tests", "test_outcomes_telemetry.py")
-        if os.path.isfile(cand):
-            return cand
+        found = _find_in_tests("test_outcomes_telemetry.py")
+        if found:
+            return found
     if "soma_core/outcomes/engine.py" in norm:
-        cand = os.path.join(repo_root, "tests", "test_outcome_engine.py")
-        if os.path.isfile(cand):
-            return cand
+        found = _find_in_tests("test_outcome_engine.py")
+        if found:
+            return found
     if "soma_core/skills" in norm or "soma_core/schemas/artifacts.py" in norm:
-        cand = os.path.join(repo_root, "tests", "test_skills_and_handoff.py")
-        if os.path.isfile(cand):
-            return cand
+        found = _find_in_tests("test_skills_and_handoff.py")
+        if found:
+            return found
 
     stem = os.path.splitext(os.path.basename(filepath))[0]
     test_name = f"test_{stem}.py"
@@ -60,21 +68,24 @@ def _find_test_file(filepath: str, repo_root: str) -> Optional[str]:
     clean_parent = parent[5:] if parent.startswith("soma_") else parent
 
     candidates = [
-        os.path.join(repo_root, "tests", test_name),
-        os.path.join(repo_root, "tests", f"test_{clean_parent}_{stem}.py"),
-        os.path.join(repo_root, "tests", f"test_{parent}_{stem}.py"),
-        os.path.join(repo_root, "tests", clean_parent, test_name),
-        os.path.join(repo_root, "tests", parent, test_name),
-        os.path.join(repo_root, "tests", f"test_{clean_parent}", test_name),
+        test_name,
+        f"test_{clean_parent}_{stem}.py",
+        f"test_{parent}_{stem}.py",
+        os.path.join(clean_parent, test_name),
+        os.path.join(parent, test_name),
+        os.path.join(f"test_{clean_parent}", test_name),
     ]
 
     # Domain specific mapping
     if stem == "runner" and clean_parent == "verification":
-        candidates.append(os.path.join(repo_root, "tests", "test_verification", "test_layer1.py"))
+        found = _find_in_tests("test_layer1.py", "test_verification/test_layer1.py")
+        if found:
+            return found
 
-    for cand in candidates:
-        if os.path.isfile(cand):
-            return cand
+    for cand_name in candidates:
+        found = _find_in_tests(cand_name)
+        if found:
+            return found
 
     return None
 
@@ -177,6 +188,16 @@ def run_layer1(
     """
     results: list[ToolEvidence] = []
 
+    def _is_test_or_support(fpath: str) -> bool:
+        norm = fpath.replace('\\', '/')
+        bname = os.path.basename(fpath)
+        return (
+            norm.startswith('tests/')
+            or '/tests/' in norm
+            or bname.startswith('test_')
+            or bname in ('__init__.py', 'conftest.py', 'harness.py', 'helpers_cell.py')
+        )
+
     # ── Persistence Completeness ──────────────────────────────────────
     if persistence_targets:
         for filepath, dict_name in persistence_targets:
@@ -188,9 +209,7 @@ def run_layer1(
     for filepath in changed_files:
         full_path = os.path.join(repo_root, filepath)
         if os.path.exists(full_path) and filepath.endswith('.py'):
-            # Skip test files and __init__.py
-            basename = os.path.basename(filepath)
-            if basename.startswith('test_') or basename == '__init__.py':
+            if _is_test_or_support(filepath):
                 continue
             results.append(call_graph.check(
                 full_path, repo_root,
@@ -202,6 +221,8 @@ def run_layer1(
     for filepath in changed_files:
         full_path = os.path.join(repo_root, filepath)
         if os.path.exists(full_path) and filepath.endswith('.py'):
+            if _is_test_or_support(filepath):
+                continue
             results.append(import_guard.check(full_path, project_root=repo_root))
 
     # ── Mutation Testing ───────────────────────────────────────────────
@@ -217,10 +238,7 @@ def run_layer1(
         else:
             # Auto-discover: for each changed .py file, find test file and functions
             for filepath in changed_files:
-                if not filepath.endswith('.py'):
-                    continue
-                basename = os.path.basename(filepath)
-                if basename.startswith('test_') or basename == '__init__.py':
+                if not filepath.endswith('.py') or _is_test_or_support(filepath):
                     continue
                 full_path = os.path.join(repo_root, filepath)
                 if not os.path.exists(full_path):
@@ -248,10 +266,7 @@ def run_layer1(
         else:
             # Auto-discover: pair changed files with test files by convention
             for filepath in changed_files:
-                if not filepath.endswith('.py'):
-                    continue
-                basename = os.path.basename(filepath)
-                if basename.startswith('test_') or basename == '__init__.py':
+                if not filepath.endswith('.py') or _is_test_or_support(filepath):
                     continue
                 full_path = os.path.join(repo_root, filepath)
                 if not os.path.exists(full_path):

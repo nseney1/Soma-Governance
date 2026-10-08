@@ -130,19 +130,30 @@ def discover_test_evidence(target_files: list[str], repo_root: str) -> tuple[lis
             continue
 
         stem = os.path.splitext(basename)[0]
+        parent = os.path.basename(os.path.dirname(tf))
+        clean_parent = parent[5:] if parent.startswith("soma_") else parent
+
         # Candidate test file locations
         candidates = [
             os.path.join(repo_root, os.path.dirname(tf), f"test_{stem}.py"),
             os.path.join(repo_root, "tests", f"test_{stem}.py"),
+            os.path.join(repo_root, "tests", f"test_{clean_parent}_{stem}.py"),
+            os.path.join(repo_root, "tests", f"test_{parent}_{stem}.py"),
+            os.path.join(repo_root, "tests", f"test_{clean_parent}.py"),
+            os.path.join(repo_root, "tests", f"test_{parent}.py"),
             os.path.join(repo_root, f"test_{stem}.py"),
         ]
-        # Also check tests/ directory matching prefix
+        # Also check tests/ directory matching prefix and recursive subdirectories
         tests_dir = os.path.join(repo_root, "tests")
         if os.path.isdir(tests_dir):
             try:
                 for fname in os.listdir(tests_dir):
-                    if fname.startswith(f"test_{stem}") and fname.endswith(".py"):
+                    if (fname.startswith(f"test_{stem}") or fname.startswith(f"test_{clean_parent}")) and fname.endswith(".py"):
                         candidates.append(os.path.join(tests_dir, fname))
+                for root, _, fnames in os.walk(tests_dir):
+                    for fname in fnames:
+                        if (fname.startswith(f"test_{stem}") or fname.startswith(f"test_{clean_parent}") or fname == f"test_{clean_parent}.py") and fname.endswith(".py"):
+                            candidates.append(os.path.join(root, fname))
             except OSError:
                 pass
 

@@ -7,8 +7,8 @@
       "status": "unlocked",
       "readme_text": "Pre-commit hooks block commits matching cell patterns",
       "required_tests": [
-        "tests/test_enforce_hooks.py::TestWallHookGeneration::test_wall_hook_blocks_matching_commit",
-        "tests/test_enforce_hooks.py::TestWallHookGeneration::test_wall_hook_allows_unmatched_commit"
+        "tests/unit/core/test_enforce_hooks.py::TestWallHookGeneration::test_wall_hook_blocks_matching_commit",
+        "tests/unit/core/test_enforce_hooks.py::TestWallHookGeneration::test_wall_hook_allows_unmatched_commit"
       ]
     },
     "claim_multi_platform": {
@@ -16,7 +16,7 @@
       "status": "unlocked",
       "readme_text": "Cross-platform support for macOS, Linux, and Windows",
       "required_tests": [
-        "tests/test_platform_adapters.py"
+        "tests/unit/core/test_platform_adapters.py"
       ]
     },
     "claim_cli_commands": {
@@ -24,7 +24,7 @@
       "status": "unlocked",
       "readme_text": "CLI commands for governance management",
       "required_tests": [
-        "tests/test_cli.py"
+        "tests/unit/cli/test_cli.py"
       ]
     },
     "claim_mcp_integration": {
@@ -32,7 +32,7 @@
       "status": "unlocked",
       "readme_text": "MCP server integration for AI agent context",
       "required_tests": [
-        "tests/test_mcp_verify.py"
+        "tests/unit/mcp/test_mcp_verify.py"
       ]
     },
     "claim_cell_lifecycle": {
@@ -40,7 +40,7 @@
       "status": "unlocked",
       "readme_text": "Cell lifecycle management (create, score, promote, demote)",
       "required_tests": [
-        "tests/test_lifecycle.py"
+        "tests/unit/core/test_lifecycle.py"
       ]
     },
     "claim_yaml_safe_load": {
@@ -48,7 +48,7 @@
       "status": "unlocked",
       "readme_text": "YAML safe_load used for all cell parsing",
       "required_tests": [
-        "tests/test_rule_metadata.py"
+        "tests/unit/core/test_rule_metadata.py"
       ]
     },
     "claim_bayesian_fitness": {
@@ -56,9 +56,9 @@
       "status": "unlocked",
       "readme_text": "Wilson-bounded fitness scoring with credible intervals",
       "required_tests": [
-        "tests/test_bayesian_correctness.py::TestWilsonInterval",
-        "tests/test_bayesian_correctness.py::TestBayesianPosterior",
-        "tests/test_threshold_recalibration.py::TestWilsonBoundaries"
+        "tests/unit/core/test_bayesian_correctness.py::TestWilsonInterval",
+        "tests/unit/core/test_bayesian_correctness.py::TestBayesianPosterior",
+        "tests/unit/core/test_threshold_recalibration.py::TestWilsonBoundaries"
       ]
     },
     "claim_canonical_parser": {
@@ -66,8 +66,8 @@
       "status": "unlocked",
       "readme_text": "Single canonical cell parser for all tools",
       "required_tests": [
-        "tests/test_sdk_behavioral.py::TestParseCellFile",
-        "tests/test_integration_lifecycle.py::TestCellLifecycle"
+        "tests/unit/sdk/test_sdk_behavioral.py::TestParseCellFile",
+        "tests/integration/test_integration_lifecycle.py::TestCellLifecycle"
       ]
     },
     "claim_credit_assignment": {
@@ -75,8 +75,8 @@
       "status": "unlocked",
       "readme_text": "Scope-narrowed credit assignment with per-file conservation",
       "required_tests": [
-        "tests/test_credit_assignment.py::TestCreditConservation::test_per_file_credit_sums_to_one",
-        "tests/test_credit_assignment.py::TestScopeNarrowing::test_cell_matching_tests_gets_no_credit_for_src"
+        "tests/unit/core/test_credit_assignment.py::TestCreditConservation::test_per_file_credit_sums_to_one",
+        "tests/unit/core/test_credit_assignment.py::TestScopeNarrowing::test_cell_matching_tests_gets_no_credit_for_src"
       ]
     },
     "claim_structured_crossover": {
@@ -84,8 +84,8 @@
       "status": "unlocked",
       "readme_text": "Structured field-level rule merging",
       "required_tests": [
-        "tests/test_crossover_structured.py::TestCrossoverMergeRules::test_same_type_parents_produce_same_type",
-        "tests/test_crossover_structured.py::TestCrossoverOutput::test_output_is_valid_cell_file"
+        "tests/unit/core/test_crossover_structured.py::TestCrossoverMergeRules::test_same_type_parents_produce_same_type",
+        "tests/unit/core/test_crossover_structured.py::TestCrossoverOutput::test_output_is_valid_cell_file"
       ]
     },
     "claim_tournament_selection": {
@@ -93,7 +93,7 @@
       "status": "unlocked",
       "readme_text": "Tournament selection for rule competition",
       "required_tests": [
-        "tests/test_phase4_enzymes.py::test_cell_selection_evaluation"
+        "tests/unit/core/test_phase4_enzymes.py::test_cell_selection_evaluation"
       ]
     },
     "claim_quorum_sensing": {
@@ -101,8 +101,8 @@
       "status": "unlocked",
       "readme_text": "Multi-rule consensus for high-confidence decisions",
       "required_tests": [
-        "tests/test_quorum.py::TestQuorumThreshold::test_quorum_fires_when_at_threshold",
-        "tests/test_quorum.py::TestQuorumDisagree::test_cells_different_targets_no_quorum"
+        "tests/unit/core/test_quorum.py::TestQuorumThreshold::test_quorum_fires_when_at_threshold",
+        "tests/unit/core/test_quorum.py::TestQuorumDisagree::test_cells_different_targets_no_quorum"
       ]
     },
     "claim_gate_enforcement": {
@@ -110,10 +110,10 @@
       "status": "unlocked",
       "readme_text": "Invariant DSL-based gate enforcement in CI",
       "required_tests": [
-        "tests/test_gate_invariant_dsl.py::TestImportBanned::test_catches_violation",
-        "tests/test_gate_invariant_dsl.py::TestImportBanned::test_allows_compliant",
-        "tests/test_enforcement_ladder.py::TestAdvisory::test_advisory_warns_no_block",
-        "tests/test_enforcement_ladder.py::TestGate::test_gate_blocks_ci"
+        "tests/unit/core/test_gate_invariant_dsl.py::TestImportBanned::test_catches_violation",
+        "tests/unit/core/test_gate_invariant_dsl.py::TestImportBanned::test_allows_compliant",
+        "tests/unit/core/test_enforcement_ladder.py::TestAdvisory::test_advisory_warns_no_block",
+        "tests/unit/core/test_enforcement_ladder.py::TestGate::test_gate_blocks_ci"
       ]
     },
     "claim_structurally_unprofitable": {

@@ -29,10 +29,10 @@ tags:
 fitness:
   score: null
   impact_weight: 1.0
-  triggers: 7
-  true_positives: 4
-  false_positives: 3
-  last_trigger_date: "2026-10-08T07:35:17Z"
+  triggers: 9
+  true_positives: 5
+  false_positives: 4
+  last_trigger_date: "2026-10-08T09:12:32Z"
 ---
 
 v0.81 origin: Phase 4 features (Quorum Sensing, Gate Enforcement) shipped in v0.80

@@ -34,7 +34,7 @@
       "affected_files": [
         "enzymes/outcome_engine.py"
       ],
-      "regression_test": "tests/test_outcome_engine.py::TestBug1OutcomeEnginePath::test_reads_from_evidence_dir",
+      "regression_test": "tests/unit/core/test_outcome_engine.py::TestBug1OutcomeEnginePath::test_reads_from_evidence_dir",
       "pattern": "Hardcoded paths diverge from actual evidence directory structure",
       "changelog_ref": "v0.81.0"
     },
@@ -49,7 +49,7 @@
       "affected_files": [
         "enzymes/outcome_engine.py"
       ],
-      "regression_test": "tests/test_outcome_engine.py::TestBug2OutcomeEngineSchema::test_cell_id_schema_matches",
+      "regression_test": "tests/unit/core/test_outcome_engine.py::TestBug2OutcomeEngineSchema::test_cell_id_schema_matches",
       "pattern": "Multiple writers produce different schemas for the same data, reader expects only one",
       "changelog_ref": "v0.81.0"
     },
@@ -64,7 +64,7 @@
       "affected_files": [
         "soma_cli/sync.py"
       ],
-      "regression_test": "tests/test_cli_sync.py::TestBug3SyncOutcomeMapping::test_success_mapped_to_tp",
+      "regression_test": "tests/unit/cli/test_cli_sync.py::TestBug3SyncOutcomeMapping::test_success_mapped_to_tp",
       "pattern": "Outcome value vocabulary not shared between writer and reader",
       "changelog_ref": "v0.81.0"
     },
@@ -79,7 +79,7 @@
       "affected_files": [
         "soma_cli/sync.py"
       ],
-      "regression_test": "tests/test_cli_sync.py::TestBug4ScoreClobber::test_score_preserved_when_no_outcomes",
+      "regression_test": "tests/unit/cli/test_cli_sync.py::TestBug4ScoreClobber::test_score_preserved_when_no_outcomes",
       "pattern": "Absence of evidence treated as evidence of absence",
       "changelog_ref": "v0.82.0"
     },
@@ -95,7 +95,7 @@
         "enzymes/outcome_engine.py",
         "enzymes/cell_selection.sh"
       ],
-      "regression_test": "tests/test_credit_assignment.py::TestSignalProvenance::test_jsonl_entry_has_credit_weight",
+      "regression_test": "tests/unit/core/test_credit_assignment.py::TestSignalProvenance::test_jsonl_entry_has_credit_weight",
       "pattern": "Writer and reader disagree on canonical file location",
       "changelog_ref": "v0.82.0"
     },
@@ -110,7 +110,7 @@
       "affected_files": [
         "enzymes/diagnose_hot_zones.py"
       ],
-      "regression_test": "tests/test_diagnose_hot_zones.py::TestRunDiagnostic::test_real_workspace_runs",
+      "regression_test": "tests/unit/core/test_diagnose_hot_zones.py::TestRunDiagnostic::test_real_workspace_runs",
       "pattern": "Type annotation syntax incompatible with minimum supported Python version",
       "changelog_ref": "v0.85.1"
     },
@@ -126,7 +126,7 @@
         "pyproject.toml",
         "VERSION"
       ],
-      "regression_test": "tests/test_static_invariants.py::test_version_is_single_sourced",
+      "regression_test": "tests/unit/verification/test_static_invariants.py::test_version_is_single_sourced",
       "pattern": "Duplicated configuration values fall out of sync during manual procedures",
       "changelog_ref": "v0.88.2"
     },
@@ -145,7 +145,7 @@
       ],
       "pattern": "Fix applied to one call site of a shared pattern, not to all of them",
       "fixed_in": "v0.89.0",
-      "regression_test": "tests/test_fcntl_optional.py::test_mcp_server_modules_import_without_fcntl",
+      "regression_test": "tests/unit/core/test_fcntl_optional.py::test_mcp_server_modules_import_without_fcntl",
       "changelog_ref": "v0.89.0"
     },
     {
@@ -161,7 +161,7 @@
         "soma_mcp/server.py"
       ],
       "pattern": "Auth handshake designed for a direct client, not for the host-mediated MCP protocol",
-      "regression_test": "tests/test_mcp_dispatch.py::test_dispatch_flow_with_receipt",
+      "regression_test": "tests/unit/mcp/test_mcp_dispatch.py::test_dispatch_flow_with_receipt",
       "fix_commit": "059ed35",
       "fixed_in": "v0.89.0",
       "changelog_ref": "v0.89.0"
@@ -180,7 +180,7 @@
         "tests/conftest.py",
         "tests/test_install_lifecycle.py"
       ],
-      "regression_test": "tests/test_legacy_purged_regressions.py::test_bug_010_home_isolation",
+      "regression_test": "tests/unit/core/test_legacy_purged_regressions.py::test_bug_010_home_isolation",
       "pattern": "Test isolation relies on HOME overrides that the code under test does not honor",
       "changelog_ref": "v0.90.0"
     },
@@ -202,7 +202,7 @@
       "pattern": "CI tests a different runtime (pwsh 7) than the one users run (Windows PowerShell 5.1)",
       "fixed_in": "v0.89.0",
       "changelog_ref": "v0.89.0",
-      "regression_test": "tests/test_static_invariants.py::test_powershell_scripts_with_non_ascii_have_utf8_bom"
+      "regression_test": "tests/unit/verification/test_static_invariants.py::test_powershell_scripts_with_non_ascii_have_utf8_bom"
     },
     {
       "id": "BUG-012",
@@ -220,7 +220,7 @@
         "soma_sdk/governance.py",
         "tests/test_rule_metadata.py"
       ],
-      "regression_test": "tests/test_cli.py::TestNonUtf8Console::test_status_survives_cp1252_stdout",
+      "regression_test": "tests/unit/cli/test_cli.py::TestNonUtf8Console::test_status_survives_cp1252_stdout",
       "pattern": "Relying on the platform default encoding instead of an explicit utf-8",
       "changelog_ref": "v0.90.0"
     },
@@ -246,7 +246,7 @@
         "tests/test_uninstall_confinement.py",
         "tests/test_v089_review_followups.py"
       ],
-      "regression_test": "tests/test_verification/test_branch_coverage.py::TestBranchCoverageContract::test_dead_branch_detected",
+      "regression_test": "tests/unit/verification/test_branch_coverage.py::TestBranchCoverageContract::test_dead_branch_detected",
       "pattern": "Tests assert on OS-specific string forms",
       "changelog_ref": "v0.90.0"
     },
@@ -262,7 +262,7 @@
       "affected_files": [
         "install/install.ps1"
       ],
-      "regression_test": "tests/test_legacy_purged_regressions.py::test_bug_014_powershell_installer_purged",
+      "regression_test": "tests/unit/core/test_legacy_purged_regressions.py::test_bug_014_powershell_installer_purged",
       "pattern": "Relying on the platform default encoding instead of an explicit utf-8",
       "fixed_in": "v0.93.0",
       "changelog_ref": "v0.93.0"
@@ -283,7 +283,7 @@
       ],
       "pattern": "Derived state recomputed from a partially-versioned evidence set overwrites the recorded state",
       "fixed_in": "v0.89.0",
-      "regression_test": "tests/test_canonical_evidence_readers.py::test_sync_malformed_ledger_does_not_apply_partial_counts",
+      "regression_test": "tests/unit/verification/test_canonical_evidence_readers.py::test_sync_malformed_ledger_does_not_apply_partial_counts",
       "changelog_ref": "v0.89.0"
     },
     {
@@ -299,7 +299,7 @@
         "soma_mcp/server.py",
         "soma_core/receipts.py"
       ],
-      "regression_test": "tests/test_mcp_receipt_binding.py::test_write_tool_cannot_be_redirected_to_another_workspace",
+      "regression_test": "tests/unit/mcp/test_mcp_receipt_binding.py::test_write_tool_cannot_be_redirected_to_another_workspace",
       "pattern": "Security control placed after an unconditional return",
       "changelog_ref": "v0.89.0"
     },
@@ -316,7 +316,7 @@
         "soma_mcp/server.py",
         "soma_core/receipts.py"
       ],
-      "regression_test": "tests/test_mcp_receipt_binding.py::test_receipt_is_stale_after_target_file_changes",
+      "regression_test": "tests/unit/mcp/test_mcp_receipt_binding.py::test_receipt_is_stale_after_target_file_changes",
       "pattern": "Integrity field populated with a constant placeholder",
       "changelog_ref": "v0.89.0"
     },
@@ -332,7 +332,7 @@
       "affected_files": [
         "soma_sdk/telemetry.py"
       ],
-      "regression_test": "tests/test_telemetry.py::TestIdempotentEventIdentity::test_same_key_same_payload_is_noop",
+      "regression_test": "tests/unit/core/test_telemetry.py::TestIdempotentEventIdentity::test_same_key_same_payload_is_noop",
       "pattern": "Idempotency key written but never read",
       "changelog_ref": "v0.89.0"
     },
@@ -349,7 +349,7 @@
         "soma_cli/migration.py",
         "soma_sdk/telemetry.py"
       ],
-      "regression_test": "tests/test_legacy_purged_regressions.py::test_bug_019_epoch_migration_purged",
+      "regression_test": "tests/unit/core/test_legacy_purged_regressions.py::test_bug_019_epoch_migration_purged",
       "pattern": "Lock-and-counter placeholder presented as a fenced migration",
       "changelog_ref": "v0.89.0"
     },
@@ -365,7 +365,7 @@
       "affected_files": [
         "enzymes/outcome_engine.py"
       ],
-      "regression_test": "tests/test_outcome_engine_insights.py::TestMainCursorCommitOrdering::test_crash_in_append_leaves_cursor_and_insight_is_reread",
+      "regression_test": "tests/unit/core/test_outcome_engine_insights.py::TestMainCursorCommitOrdering::test_crash_in_append_leaves_cursor_and_insight_is_reread",
       "pattern": "Progress marker committed before the work it records",
       "changelog_ref": "v0.89.0"
     },
@@ -382,7 +382,7 @@
         "install/uninstall.sh",
         "install/uninstall.ps1"
       ],
-      "regression_test": "tests/test_legacy_purged_regressions.py::test_bug_021_uninstall_confinement_dotdot",
+      "regression_test": "tests/unit/core/test_legacy_purged_regressions.py::test_bug_021_uninstall_confinement_dotdot",
       "pattern": "String prefix check used as path containment",
       "changelog_ref": "v0.89.0"
     },
@@ -398,7 +398,7 @@
       "affected_files": [
         "immune_system/verification/quality_gate.py"
       ],
-      "regression_test": "tests/test_quality_gate.py::TestCheckNoBarePass::test_no_bare_pass_fails_for_ellipsis_body",
+      "regression_test": "tests/unit/verification/test_quality_gate.py::TestCheckNoBarePass::test_no_bare_pass_fails_for_ellipsis_body",
       "pattern": "Deprecated stdlib alias removed in a newer runtime",
       "changelog_ref": "v0.89.0"
     },
@@ -417,7 +417,7 @@
         ".github/scripts/verify_dist.py",
         ".github/scripts/wheel_smoke.py"
       ],
-      "regression_test": "tests/test_release_workflow.py::test_verify_dist_rejects_tampered_artifact",
+      "regression_test": "tests/integration/test_release_workflow.py::test_verify_dist_rejects_tampered_artifact",
       "pattern": "Tested artifact and shipped artifact not provably identical",
       "changelog_ref": "v0.89.0"
     },
@@ -436,7 +436,7 @@
         "enzymes/outcome_engine.py",
         "enzymes/fitness_updater.py"
       ],
-      "regression_test": "tests/test_evidence_transactions.py::test_report_outcome_batch_failure_then_same_key_retries_once",
+      "regression_test": "tests/unit/core/test_evidence_transactions.py::test_report_outcome_batch_failure_then_same_key_retries_once",
       "pattern": "Per-item appends used for an operation that must commit as one batch",
       "changelog_ref": "v0.89.0"
     },
@@ -452,7 +452,7 @@
       "affected_files": [
         "soma_cli/migration.py"
       ],
-      "regression_test": "tests/test_legacy_purged_regressions.py::test_bug_025_migration_lock_purged",
+      "regression_test": "tests/unit/core/test_legacy_purged_regressions.py::test_bug_025_migration_lock_purged",
       "pattern": "Lease age treated as stronger evidence than live ownership",
       "changelog_ref": "v0.89.0"
     },
@@ -472,7 +472,7 @@
         "enzymes/oracle_checkpoint.py",
         "immune_system/verification/lifecycle.py"
       ],
-      "regression_test": "tests/test_canonical_evidence_readers.py::test_owned_production_has_no_active_legacy_evidence_paths",
+      "regression_test": "tests/unit/verification/test_canonical_evidence_readers.py::test_owned_production_has_no_active_legacy_evidence_paths",
       "pattern": "Writer migration completed without migrating all readers",
       "changelog_ref": "v0.89.0"
     },
@@ -492,7 +492,7 @@
         "soma_mcp/tools.py",
         "soma_sdk/governance.py"
       ],
-      "regression_test": "tests/test_cell_inventory_integration.py::test_sdk_and_mcp_direct_list_reject_symlinked_directory",
+      "regression_test": "tests/unit/core/test_cell_inventory_integration.py::test_sdk_and_mcp_direct_list_reject_symlinked_directory",
       "pattern": "Security-sensitive consumers used different filesystem inventories",
       "changelog_ref": "v0.89.0"
     },
@@ -508,7 +508,7 @@
       "affected_files": [
         "immune_system/verification/checkpoint_checks.py"
       ],
-      "regression_test": "tests/test_checkpoint_fail_closed.py::test_malformed_cell_frontmatter_is_an_issue",
+      "regression_test": "tests/unit/verification/test_checkpoint_fail_closed.py::test_malformed_cell_frontmatter_is_an_issue",
       "pattern": "Verification converted read/parse failure into a clean result",
       "changelog_ref": "v0.89.0"
     },
@@ -527,7 +527,7 @@
         "soma_cli/init.py",
         ".mcp.json.example"
       ],
-      "regression_test": "tests/test_packaging_install_correctness.py::test_python_init_mcp_merge_targets_project",
+      "regression_test": "tests/integration/test_packaging_install_correctness.py::test_python_init_mcp_merge_targets_project",
       "pattern": "Installer configuration targeted its own source instead of the governed project",
       "changelog_ref": "v0.89.0"
     },
@@ -548,7 +548,7 @@
         "soma_sdk/__init__.py",
         "soma_sdk_js/package.json"
       ],
-      "regression_test": "tests/test_packaging_install_correctness.py::test_packaging_excludes_private_soma_state_and_includes_genome_package",
+      "regression_test": "tests/integration/test_packaging_install_correctness.py::test_packaging_excludes_private_soma_state_and_includes_genome_package",
       "pattern": "Source-tree tests concealed missing wheel data and private sdist data",
       "changelog_ref": "v0.89.0"
     },
@@ -567,7 +567,7 @@
         "install/uninstall.sh",
         "install/uninstall.ps1"
       ],
-      "regression_test": "tests/test_legacy_purged_regressions.py::test_bug_031_manifestless_uninstall_purged",
+      "regression_test": "tests/unit/core/test_legacy_purged_regressions.py::test_bug_031_manifestless_uninstall_purged",
       "pattern": "Fallback discovery treated shared directories as exclusively owned",
       "changelog_ref": "v0.89.0"
     },
@@ -586,7 +586,7 @@
         "soma_cli/cli.py",
         ".github/workflows/validate.yml"
       ],
-      "regression_test": "tests/test_hooks_lifecycle.py::TestCliDispatch::test_soma_cli_hook_subcommand",
+      "regression_test": "tests/unit/cli/test_hooks_lifecycle.py::TestCliDispatch::test_soma_cli_hook_subcommand",
       "pattern": "Cross-platform support claimed while one platform omits a lifecycle subsystem",
       "fixed_in": "v0.93.0",
       "changelog_ref": "v0.93.0"
@@ -604,7 +604,7 @@
       "affected_files": [
         "soma_cli/status.py"
       ],
-      "regression_test": "tests/test_status_claude_md.py",
+      "regression_test": "tests/unit/cli/test_status_claude_md.py",
       "pattern": "Status reads a different artifact than the installer writes",
       "changelog_ref": "v0.90.0"
     },
@@ -621,7 +621,7 @@
       "affected_files": [
         "immune_system/verification/mutation_tester.py"
       ],
-      "regression_test": "tests/test_verification/test_mutation_tester.py::TestMutationTesterFailsClosed::test_unrunnable_test_file_fails_closed",
+      "regression_test": "tests/unit/verification/test_mutation_tester.py::TestMutationTesterFailsClosed::test_unrunnable_test_file_fails_closed",
       "pattern": "Verifier treats 'could not run' as 'passed' (fail-open)",
       "changelog_ref": "v0.90.0"
     },
@@ -638,7 +638,7 @@
       "affected_files": [
         "soma_core/cell_inventory.py"
       ],
-      "regression_test": "tests/test_mcp_receipt_binding.py::test_receipt_flow_works_after_cell_edited_since_creation",
+      "regression_test": "tests/unit/mcp/test_mcp_receipt_binding.py::test_receipt_flow_works_after_cell_edited_since_creation",
       "pattern": "Stat signatures compared across os.stat and os.fstat assume both report the same timestamps",
       "changelog_ref": "v0.90.0"
     },
@@ -656,7 +656,7 @@
         "install/uninstall.sh",
         "enzymes/common.sh"
       ],
-      "regression_test": "tests/test_legacy_purged_regressions.py::test_bug_036_uninstall_msys_paths",
+      "regression_test": "tests/unit/core/test_legacy_purged_regressions.py::test_bug_036_uninstall_msys_paths",
       "pattern": "POSIX-form paths handed to a native Windows interpreter",
       "changelog_ref": "v0.90.0"
     },
@@ -676,7 +676,7 @@
       ],
       "pattern": "Interpreter presence checked with command -v instead of by running it",
       "fixed_in": "v0.90.0",
-      "regression_test": "tests/test_legacy_purged_regressions.py::test_bug_037_python_resolution",
+      "regression_test": "tests/unit/core/test_legacy_purged_regressions.py::test_bug_037_python_resolution",
       "changelog_ref": "v0.90.0"
     },
     {
@@ -720,7 +720,7 @@
         "immune_system/verification/persistence_checker.py",
         "immune_system/verification/runner.py"
       ],
-      "regression_test": "tests/test_legacy_purged_regressions.py::test_bug_038_enzyme_console_encoding",
+      "regression_test": "tests/unit/core/test_legacy_purged_regressions.py::test_bug_038_enzyme_console_encoding",
       "pattern": "Relying on the platform default encoding instead of an explicit utf-8",
       "changelog_ref": "v0.90.0"
     },
@@ -737,7 +737,7 @@
       "affected_files": [
         "immune_system/verification/mutation_tester.py"
       ],
-      "regression_test": "tests/test_verification/test_mutation_tester.py::TestMutationTesterAppliesEveryCollectedMutation::test_unchecked_comparison_survives",
+      "regression_test": "tests/unit/verification/test_mutation_tester.py::TestMutationTesterAppliesEveryCollectedMutation::test_unchecked_comparison_survives",
       "pattern": "Collected mutations silently skipped instead of being evaluated",
       "changelog_ref": "v0.90.0"
     },
@@ -755,7 +755,7 @@
         "soma_sdk/telemetry.py",
         ".soma/evidence/.gitignore"
       ],
-      "regression_test": "tests/test_telemetry.py::TestEvidenceLockIgnoredByGit::test_lock_file_is_ignored",
+      "regression_test": "tests/unit/core/test_telemetry.py::TestEvidenceLockIgnoredByGit::test_lock_file_is_ignored",
       "pattern": "Runtime lock file written inside the working tree without an ignore rule",
       "changelog_ref": "v0.90.0"
     },
@@ -780,7 +780,7 @@
         "QUICKSTART.md",
         "README.md"
       ],
-      "regression_test": "tests/test_pathcheck.py",
+      "regression_test": "tests/unit/cli/test_pathcheck.py",
       "pattern": "Installer assumes the user's shell reads the same startup file as bash",
       "changelog_ref": "v0.90.0"
     },
@@ -796,7 +796,7 @@
       "affected_files": [
         "enzymes/immune_sweep.sh"
       ],
-      "regression_test": "tests/test_legacy_purged_regressions.py::test_bug_042_immune_sweep_env",
+      "regression_test": "tests/unit/core/test_legacy_purged_regressions.py::test_bug_042_immune_sweep_env",
       "pattern": "Variable read under set -u that no code path assigns",
       "changelog_ref": "v0.90.0"
     },
@@ -812,7 +812,7 @@
       "affected_files": [
         "install/uninstall.sh"
       ],
-      "regression_test": "tests/test_legacy_purged_regressions.py::test_bug_043_manifestless_uninstall",
+      "regression_test": "tests/unit/core/test_legacy_purged_regressions.py::test_bug_043_manifestless_uninstall",
       "pattern": "Security check degrades to a weaker fallback instead of failing closed",
       "changelog_ref": "v0.90.0"
     },
@@ -831,7 +831,7 @@
         "install/install.sh",
         "install/uninstall.sh"
       ],
-      "regression_test": "tests/test_legacy_purged_regressions.py::test_bug_044_shell_isolation",
+      "regression_test": "tests/unit/core/test_legacy_purged_regressions.py::test_bug_044_shell_isolation",
       "pattern": "Inline interpreter code run with the current directory on the import path",
       "changelog_ref": "v0.90.0"
     },
@@ -847,7 +847,7 @@
       "affected_files": [
         "install/uninstall.sh"
       ],
-      "regression_test": "tests/test_legacy_purged_regressions.py::test_bug_045_settings_cleanup_symlink",
+      "regression_test": "tests/unit/core/test_legacy_purged_regressions.py::test_bug_045_settings_cleanup_symlink",
       "pattern": "File rewrite that bypasses the path confinement guard",
       "changelog_ref": "v0.90.0"
     },
@@ -864,7 +864,7 @@
         "enzymes/verify_bug_registry.py",
         "tests/test_bug_registry.py"
       ],
-      "regression_test": "tests/test_bug_registry.py::TestRegressionRunBudget::test_budget_grows_with_the_registry",
+      "regression_test": "tests/integration/test_bug_registry.py::TestRegressionRunBudget::test_budget_grows_with_the_registry",
       "pattern": "Fixed timeout budget for growing test suite",
       "changelog_ref": "v0.90.0"
     },
@@ -881,7 +881,7 @@
         "soma_cli/init.py",
         "soma_cli/doctor.py"
       ],
-      "regression_test": "tests/test_precommit_hook_fallback.py::test_falls_back_to_init_interpreter_when_soma_not_on_path",
+      "regression_test": "tests/unit/core/test_precommit_hook_fallback.py::test_falls_back_to_init_interpreter_when_soma_not_on_path",
       "pattern": "Hook or generated script that depends on the interactive shell's PATH",
       "changelog_ref": "v0.90.0"
     },
@@ -897,7 +897,7 @@
       "affected_files": [
         "enzymes/ttc_verifier.py"
       ],
-      "regression_test": "tests/test_oracle_checkpoint.py",
+      "regression_test": "tests/unit/cli/test_oracle_checkpoint.py",
       "pattern": "Assuming workspace contains engine installation directory structure",
       "changelog_ref": "v0.91.0"
     },
@@ -913,7 +913,7 @@
       "affected_files": [
         "enzymes/cell_create_nl.py"
       ],
-      "regression_test": "tests/test_cell_creation_security.py",
+      "regression_test": "tests/unit/core/test_cell_creation_security.py",
       "pattern": "Joining unvalidated parameter into filesystem path without basename sanitization",
       "changelog_ref": "v0.91.0"
     },
@@ -929,7 +929,7 @@
       "affected_files": [
         "enzymes/bump_version.sh"
       ],
-      "regression_test": "tests/test_packaging_install_correctness.py",
+      "regression_test": "tests/integration/test_packaging_install_correctness.py",
       "pattern": "Unvalidated shell parameter substituted into executable code template",
       "changelog_ref": "v0.91.0"
     },
@@ -946,7 +946,7 @@
         "soma_mcp/tools.py",
         "enzymes/ttc_verifier.py"
       ],
-      "regression_test": "tests/test_mcp_dispatch.py",
+      "regression_test": "tests/unit/mcp/test_mcp_dispatch.py",
       "pattern": "Omitting workspace parameter in MCP tool execution router",
       "changelog_ref": "v0.91.0"
     },
@@ -965,7 +965,7 @@
         "enzymes/cell_coverage.py",
         "enzymes/immune_grade.py"
       ],
-      "regression_test": "tests/test_error_handling.py",
+      "regression_test": "tests/unit/core/test_error_handling.py",
       "pattern": "Bare except pass swallowing exception without stderr output or logging",
       "changelog_ref": "v0.91.0"
     },
@@ -981,7 +981,7 @@
       "affected_files": [
         "soma_mcp/tools.py"
       ],
-      "regression_test": "tests/test_mcp_verify.py",
+      "regression_test": "tests/unit/mcp/test_mcp_verify.py",
       "pattern": "Returning pass response with unverified capability claims",
       "changelog_ref": "v0.91.0"
     },
@@ -998,7 +998,7 @@
         "soma_sdk/cells.py",
         "enzymes/insight_capture.py"
       ],
-      "regression_test": "tests/test_static_invariants.py",
+      "regression_test": "tests/unit/verification/test_static_invariants.py",
       "pattern": "Transitive import of non-stdlib dependency in stdio server path",
       "changelog_ref": "v0.91.0"
     },
@@ -1014,7 +1014,7 @@
       "affected_files": [
         "enzymes/session_close.sh"
       ],
-      "regression_test": "tests/test_legacy_purged_regressions.py::test_bug_055_session_close_order",
+      "regression_test": "tests/unit/core/test_legacy_purged_regressions.py::test_bug_055_session_close_order",
       "pattern": "Git push executed before lifecycle mutation steps complete",
       "changelog_ref": "v0.91.0"
     },
@@ -1030,7 +1030,7 @@
       "affected_files": [
         "soma_mcp/cell_cache.py"
       ],
-      "regression_test": "tests/test_evidence_integrity.py",
+      "regression_test": "tests/unit/core/test_evidence_integrity.py",
       "pattern": "Cryptographic integrity check logs warning instead of failing closed",
       "changelog_ref": "v0.91.0"
     },
@@ -1046,7 +1046,7 @@
       "affected_files": [
         "soma_core/receipts.py"
       ],
-      "regression_test": "tests/test_receipts.py",
+      "regression_test": "tests/unit/core/test_receipts.py",
       "pattern": "Timing side channel in token verification and destructive state deletion on read",
       "changelog_ref": "v0.91.0"
     },
@@ -1062,7 +1062,7 @@
       "affected_files": [
         "immune_system/verification/arbiter.py"
       ],
-      "regression_test": "tests/test_verification/test_arbiter.py",
+      "regression_test": "tests/unit/verification/test_arbiter.py",
       "pattern": "Tool omitted from category dictionary in evidence arbiter",
       "changelog_ref": "v0.91.0"
     },
@@ -1078,7 +1078,7 @@
       "affected_files": [
         "enzymes/post_session_hook.sh"
       ],
-      "regression_test": "tests/test_legacy_purged_regressions.py::test_bug_059_post_session_hook_heredoc",
+      "regression_test": "tests/unit/core/test_legacy_purged_regressions.py::test_bug_059_post_session_hook_heredoc",
       "pattern": "Unquoted heredoc interpolates unescaped shell variables into inline script",
       "changelog_ref": "v0.92.3"
     },
@@ -1094,7 +1094,7 @@
       "affected_files": [
         "soma_mcp/cell_cache.py"
       ],
-      "regression_test": "tests/test_cell_cache.py",
+      "regression_test": "tests/unit/mcp/test_cell_cache.py",
       "pattern": "Cryptographic integrity verification error caught and downgraded to empty or partial state",
       "changelog_ref": "v0.92.3"
     },
@@ -1110,7 +1110,7 @@
       "affected_files": [
         "enzymes/outcome_engine.py"
       ],
-      "regression_test": "tests/test_outcome_engine.py",
+      "regression_test": "tests/unit/core/test_outcome_engine.py",
       "pattern": "Telemetry reader field mapping drifts from canonical telemetry writer schema",
       "changelog_ref": "v0.92.3"
     },
@@ -1129,7 +1129,7 @@
         "enzymes/team_sync.sh",
         "enzymes/cell_transfer.sh"
       ],
-      "regression_test": "tests/test_legacy_purged_regressions.py::test_bug_062_shell_upward_traversal",
+      "regression_test": "tests/unit/core/test_legacy_purged_regressions.py::test_bug_062_shell_upward_traversal",
       "pattern": "Directory walk loop termination condition assumes POSIX root slash only",
       "changelog_ref": "v0.92.3"
     },
@@ -1145,7 +1145,7 @@
       "affected_files": [
         "install/uninstall.sh"
       ],
-      "regression_test": "tests/test_legacy_purged_regressions.py::test_bug_063_uninstall_sed_rules",
+      "regression_test": "tests/unit/core/test_legacy_purged_regressions.py::test_bug_063_uninstall_sed_rules",
       "pattern": "Multiline section deletion regex truncates past section boundary or orphans content",
       "changelog_ref": "v0.92.3"
     },
@@ -1162,7 +1162,7 @@
         "soma_sdk/governance.py",
         "soma_core/frontmatter.py"
       ],
-      "regression_test": "tests/test_verification/test_import_guard.py",
+      "regression_test": "tests/unit/verification/test_import_guard.py",
       "pattern": "Base SDK imports higher-layer MCP server implementation module",
       "changelog_ref": "v0.92.3"
     },
@@ -1178,7 +1178,7 @@
       "affected_files": [
         "enzymes/oracle_checkpoint.py"
       ],
-      "regression_test": "tests/test_oracle_checkpoint.py",
+      "regression_test": "tests/unit/cli/test_oracle_checkpoint.py",
       "pattern": "Direct sibling script import without package-relative or sys.path resolution",
       "changelog_ref": "v0.92.3"
     },
@@ -1194,7 +1194,7 @@
       "affected_files": [
         "soma_cli/init.py"
       ],
-      "regression_test": "tests/test_init.py",
+      "regression_test": "tests/unit/cli/test_init.py",
       "pattern": "Platform enumeration omitted newly supported agent environment",
       "changelog_ref": "v0.92.3"
     },
@@ -1210,7 +1210,7 @@
       "affected_files": [
         "soma_cli/demote.py"
       ],
-      "regression_test": "tests/test_cli_demote.py",
+      "regression_test": "tests/unit/cli/test_cli_demote.py",
       "pattern": "Destructive mutation command lacks validation guard on protected core rules",
       "changelog_ref": "v0.92.3"
     },
@@ -1226,7 +1226,7 @@
       "affected_files": [
         "enzymes/escalation_sentinel.sh"
       ],
-      "regression_test": "tests/test_review_intensity.py",
+      "regression_test": "tests/unit/verification/test_review_intensity.py",
       "pattern": "Escalation threshold evaluates wrong metric and permits later rules to downgrade severity",
       "changelog_ref": "v0.92.3"
     },
@@ -1243,7 +1243,7 @@
         "enzymes/cell_fitness.py",
         "enzymes/fitness_landscape.py"
       ],
-      "regression_test": "tests/test_bayesian_fitness.py",
+      "regression_test": "tests/unit/core/test_bayesian_fitness.py",
       "pattern": "Division by unvalidated zero or None metadata configuration value",
       "changelog_ref": "v0.92.3"
     },
@@ -1259,7 +1259,7 @@
       "affected_files": [
         "tests/test_inference_provider.py"
       ],
-      "regression_test": "tests/test_inference_provider.py",
+      "regression_test": "tests/unit/core/test_inference_provider.py",
       "pattern": "Optional third-party dependencies patched directly instead of hermetically mocked via sys.modules",
       "changelog_ref": "v0.106.0"
     },
@@ -1276,7 +1276,7 @@
         "soma_mcp/jit_engine.py",
         "install/soma.conf.example"
       ],
-      "regression_test": "tests/test_jit_context_budget.py",
+      "regression_test": "tests/unit/mcp/test_jit_context_budget.py",
       "pattern": "Context injection engine lacks cumulative token estimation and budget enforcement clamps",
       "changelog_ref": "v0.106.0"
     },
@@ -1293,7 +1293,7 @@
         "soma_mcp/jit_engine.py",
         "soma_mcp/tools.py"
       ],
-      "regression_test": "tests/test_jit_preseed_constraints.py",
+      "regression_test": "tests/unit/mcp/test_jit_preseed_constraints.py",
       "pattern": "Downstream validation gates reject changes that could have been prevented with upstream pre-seed context",
       "changelog_ref": "v0.107.0"
     },
@@ -1309,7 +1309,7 @@
       "affected_files": [
         "soma_core/inference_provider.py"
       ],
-      "regression_test": "tests/test_security_ssrf_config.py",
+      "regression_test": "tests/unit/core/test_security_ssrf_config.py",
       "pattern": "Network base URLs read from untrusted workspace configs without isolating host credential forwarding",
       "changelog_ref": "v0.109.0"
     },
@@ -1325,7 +1325,7 @@
       "affected_files": [
         "soma_core/command_safety.py"
       ],
-      "regression_test": "tests/test_command_safety_bundled_flags.py",
+      "regression_test": "tests/unit/core/test_command_safety_bundled_flags.py",
       "pattern": "Exact string equality checks on command-line flags fail against POSIX short-flag bundling",
       "changelog_ref": "v0.109.0"
     },
@@ -1341,7 +1341,7 @@
       "affected_files": [
         "soma_core/command_safety.py"
       ],
-      "regression_test": "tests/test_command_safety_trailing_slashes.py",
+      "regression_test": "tests/unit/core/test_command_safety_trailing_slashes.py",
       "pattern": "String matching on filesystem paths fails due to unnormalized trailing slashes",
       "changelog_ref": "v0.109.0"
     },
@@ -1357,7 +1357,7 @@
       "affected_files": [
         "soma_mcp/server.py"
       ],
-      "regression_test": "tests/test_mcp_session_auth_enforcement.py",
+      "regression_test": "tests/unit/mcp/test_mcp_session_auth_enforcement.py",
       "pattern": "Authentication check guards skip validation entirely when credentials are absent instead of failing closed",
       "changelog_ref": "v0.109.0"
     },
@@ -1373,7 +1373,7 @@
       "affected_files": [
         "soma_core/verification/immune_verify.py"
       ],
-      "regression_test": "tests/test_verification/test_signature_ast_fallback.py",
+      "regression_test": "tests/unit/verification/test_signature_ast_fallback.py",
       "pattern": "ast.literal_eval called on arbitrary AST expressions without handling ValueError/SyntaxError or falling back to ast.unparse",
       "changelog_ref": "v0.109.0"
     },
@@ -1389,7 +1389,7 @@
       "affected_files": [
         "soma_core/verification/arbiter.py"
       ],
-      "regression_test": "tests/test_verification/test_arbiter_multitarget_evidence.py",
+      "regression_test": "tests/unit/verification/test_arbiter_multitarget_evidence.py",
       "pattern": "Dictionary comprehension keys on tool name instead of (tool, target) tuple or list grouping, causing evidence overwrites",
       "changelog_ref": "v0.109.0"
     },
@@ -1405,7 +1405,7 @@
       "affected_files": [
         "soma_core/verification/checkpoint_checks.py"
       ],
-      "regression_test": "tests/test_architecture_decoupling.py",
+      "regression_test": "tests/unit/core/test_architecture_decoupling.py",
       "pattern": "Low-level core module imports higher-level porcelain server module, breaking layer decoupling",
       "changelog_ref": "v0.109.0"
     },
@@ -1422,7 +1422,7 @@
         "soma_cli/__init__.py",
         "soma_cli/verify.py"
       ],
-      "regression_test": "tests/test_cli_sanitize_c1.py",
+      "regression_test": "tests/unit/cli/test_cli_sanitize_c1.py",
       "pattern": "Terminal display sanitization omits 8-bit control sequences and CLI handlers output raw filenames to stderr",
       "changelog_ref": "v0.109.0"
     },
@@ -1438,7 +1438,7 @@
       "affected_files": [
         "soma_core/inference_provider.py"
       ],
-      "regression_test": "tests/test_gemini_afc_config.py",
+      "regression_test": "tests/unit/core/test_gemini_afc_config.py",
       "pattern": "Upstream SDK defaults trigger advisory warnings on stderr when default configuration options are omitted",
       "changelog_ref": "v0.109.0"
     },
@@ -1456,7 +1456,7 @@
         "soma_cli/init.py",
         "soma_cli/doctor.py"
       ],
-      "regression_test": "tests/test_worktree_hooks.py",
+      "regression_test": "tests/unit/core/test_worktree_hooks.py",
       "pattern": "Git hook installation or detection assumes .git is always a directory rather than resolving worktree gitdir pointers",
       "changelog_ref": "v0.111.0"
     },
@@ -1475,7 +1475,7 @@
         "soma_core/lifecycle/__init__.py",
         "soma_mcp/tools.py"
       ],
-      "regression_test": "tests/test_cell_creation_enforcement.py",
+      "regression_test": "tests/unit/verification/test_cell_creation_enforcement.py",
       "pattern": "Cell generation utility omits schema fields required by checkpoint conventions validator",
       "changelog_ref": "v0.111.0"
     }

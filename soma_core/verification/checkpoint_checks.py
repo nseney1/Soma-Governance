@@ -157,10 +157,14 @@ def _resolve_canonical_test_candidates(root: Path, source_file: Path) -> list[Pa
     stem = rel_path.stem
     if len(parts) >= 2:
         top_pkg = parts[0]
-        subparts = parts[1:-1]
         clean_pkg = top_pkg[5:] if top_pkg.startswith("soma_") else top_pkg
+        subparts = parts[1:-1]
         candidates.append(test_dir.joinpath(clean_pkg, *subparts, f"test_{stem}.py"))
         candidates.append(test_dir.joinpath(top_pkg, *subparts, f"test_{stem}.py"))
+        candidates.append(test_dir.joinpath("unit", clean_pkg, *subparts, f"test_{stem}.py"))
+        candidates.append(test_dir.joinpath("unit", top_pkg, *subparts, f"test_{stem}.py"))
+        candidates.append(test_dir.joinpath("unit", clean_pkg, f"test_{stem}.py"))
+        candidates.append(test_dir.joinpath("unit", top_pkg, f"test_{stem}.py"))
 
     # 2. Subpackage and platform suite candidates
     parent_name = source_file.parent.name
@@ -236,8 +240,26 @@ def _resolve_canonical_test_candidates(root: Path, source_file: Path) -> list[Pa
     candidates.append(test_dir / f"test_{stem}.py")
     candidates.append(test_dir / f"test_{stem}_behavioral.py")
     candidates.append(test_dir / "test_verification" / f"test_{stem}.py")
+    candidates.append(test_dir / "unit" / "verification" / f"test_{stem}.py")
 
-    return candidates
+    expanded: list[Path] = []
+    seen = set()
+    for c in candidates:
+        if c not in seen:
+            expanded.append(c)
+            seen.add(c)
+        if c.parent == test_dir:
+            for domain in ("core", "cli", "mcp", "sdk", "verification"):
+                cand_domain = test_dir / "unit" / domain / c.name
+                if cand_domain not in seen:
+                    expanded.append(cand_domain)
+                    seen.add(cand_domain)
+            cand_integration = test_dir / "integration" / c.name
+            if cand_integration not in seen:
+                expanded.append(cand_integration)
+                seen.add(cand_integration)
+
+    return expanded
 
 
 def check_test_coverage(root: Path) -> list[dict]:

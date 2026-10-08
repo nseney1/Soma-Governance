@@ -1,0 +1,57 @@
+from pathlib import Path
+"""Tests for apply_decay integration in the --local promotion path.
+
+Verifies that the --local promotion path also applies exponential decay
+before evaluating candidates, consistent with the --tier-check path.
+"""
+import json
+import os
+import subprocess
+import sys
+import pytest
+from soma_core.somayaml import dump_frontmatter, parse_frontmatter
+
+REPO_ROOT = str(next(p for p in Path(__file__).resolve().parents if (p / "pyproject.toml").exists()))
+sys.path.insert(0, REPO_ROOT)
+sys.path.insert(0, os.path.join(REPO_ROOT, 'enzymes'))
+
+
+
+# ── Phase 3: C2 — Promotion Zero-Trigger Guard ───────────────────────────
+
+class TestPromotionZeroTriggerGuard:
+    """Verify untested cells cannot be promoted regardless of impact_weight."""
+
+    def test_normalize_fitness_zero_triggers_not_promoted(self, tmp_path):
+        """A cell with 0 triggers must not be promotable via lifecycle evaluation."""
+        from soma_core.lifecycle import evaluate_promotions
+        from tests.helpers_cell import make_cell
+
+        cells_dir = tmp_path / ".soma" / "cells" / "vacuoles"
+        cells_dir.mkdir(parents=True)
+        evidence_dir = tmp_path / ".soma" / "evidence"
+        evidence_dir.mkdir(parents=True)
+
+        make_cell(str(cells_dir), "zero-cell", cell_type="vacuole", created_days_ago=60)
+        # 0 triggers in evidence
+        candidates = evaluate_promotions(str(tmp_path))
+        assert not any(c["cell_id"] == "zero-cell" for c in candidates), \
+            "Zero-trigger cell must not appear in promotion candidates"
+
+    def test_normalize_fitness_high_triggers_preserves_data(self, tmp_path):
+        """A high-quality cell with 50 triggers (48 TP, 1 FP) must be promoted."""
+        from soma_core.lifecycle import evaluate_promotions
+        from tests.helpers_cell import make_cell, write_evidence
+
+        cells_dir = tmp_path / ".soma" / "cells" / "vacuoles"
+        cells_dir.mkdir(parents=True)
+        evidence_dir = tmp_path / ".soma" / "evidence"
+        evidence_dir.mkdir(parents=True)
+
+        make_cell(str(cells_dir), "high-cell", cell_type="vacuole", created_days_ago=60)
+        write_evidence(str(evidence_dir), "high-cell", triggers=50, tp=48, fp=1)
+
+        candidates = evaluate_promotions(str(tmp_path))
+        promoted_ids = [c["cell_id"] for c in candidates]
+        assert "high-cell" in promoted_ids, \
+            f"High-quality cell should be promoted, got candidates {candidates}"
