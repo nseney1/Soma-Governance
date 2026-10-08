@@ -527,4 +527,34 @@ class TestArtifactsAndSkillsBranchHardening:
         assert reg2.resolve("Hello ${existing} and ${missing}", strict=False) == "Hello val and ${missing}"
         assert reg2.to_dict() == {"existing": "val"}
 
+        # resolve default strict=True raises SlotResolutionError when slot is missing
+        with pytest.raises(SlotResolutionError, match="Unresolved required slot: 'missing'"):
+            reg2.resolve("Hello ${missing}")
+
+    def test_skill_node_from_doc_mutant_kills(self):
+        from soma_core.skills.graph import SkillNode
+        from soma_core.somayaml import SomaDocument
+        doc = SomaDocument(metadata={"id": "skill-custom", "tier": "specialist", "description": "desc"})
+        node = SkillNode.from_doc(doc)
+        assert node.tier == "specialist"
+        assert node.tier != "method"
+
+    def test_handoff_ticket_format_prompt_block_slice(self):
+        from soma_core.skills.handoff import HandoffTicket
+        ticket = HandoffTicket(
+            ticket_id="t1",
+            artifact_type="diff",
+            producer_skill="s1",
+            target_skill="s2",
+            file_path="/tmp/f.json",
+            tree_hash="abcdef123456",
+            session_hmac="0123456789abcdef0123456789abcdef",
+            summary="sum",
+            created_at="now",
+        )
+        block = ticket.format_prompt_block()
+        assert "[HMAC]: 0123456789ab..." in block
+        assert "[HMAC]: 0123456789abc..." not in block
+
+
 

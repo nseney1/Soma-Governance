@@ -401,7 +401,6 @@ from soma_core.outcomes import (
     INSIGHT_SCOPE,
     append_fitness_log,
     run_outcome_engine,
-    main,
     PLATFORMS,
     DEFAULT_PLATFORM,
     detect_platform,
@@ -410,6 +409,11 @@ from soma_core.outcomes import (
     match_cells,
     update_fitness,
 )
+
+
+def main(*args, **kwargs) -> int:
+    return run_outcome_engine(*args, mod=sys.modules[__name__], **kwargs)
+
 
 # ── Metrics Snapshot, Quorum, Coverage & Immune Grade ─────────────────────
 from soma_core.metrics import (

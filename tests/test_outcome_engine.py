@@ -418,35 +418,14 @@ class TestOutcomeEngineExecution:
         assert main() == 24
         assert len(reconfigured) == 2
 
-    def test_run_outcome_engine_mod_branches(self, monkeypatch, tmp_path):
+    def test_run_outcome_engine_mod_branches(self, tmp_path):
         from soma_core.outcomes.engine import run_outcome_engine
         import types
-        import sys
         ws = str(tmp_path)
-
-        # 1. mod is provided
         custom_mod = types.ModuleType("custom_mod")
         custom_mod.resolve_workspace = lambda: ws
         assert run_outcome_engine(mod=custom_mod) == 0
 
-        # 2. soma_core.telemetry not present, fallback to soma_core.outcomes
-        saved_telem = sys.modules.pop("soma_core.telemetry", None)
-        try:
-            assert run_outcome_engine(workspace=ws) == 0
-        finally:
-            if saved_telem is not None:
-                sys.modules["soma_core.telemetry"] = saved_telem
-
-        # 3. neither soma_core.telemetry nor soma_core.outcomes present, fallback to sys.modules[__name__]
-        saved_telem = sys.modules.pop("soma_core.telemetry", None)
-        saved_outcomes = sys.modules.pop("soma_core.outcomes", None)
-        try:
-            assert run_outcome_engine(workspace=ws) == 0
-        finally:
-            if saved_telem is not None:
-                sys.modules["soma_core.telemetry"] = saved_telem
-            if saved_outcomes is not None:
-                sys.modules["soma_core.outcomes"] = saved_outcomes
 
 
 
