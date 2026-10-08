@@ -27,10 +27,10 @@ tags:
 fitness:
   score: 0.75
   impact_weight: 1.0
-  triggers: 25
-  true_positives: 3.8896
-  false_positives: 1.6323
-  last_trigger_date: "2026-10-08T05:01:40Z"
+  triggers: 28
+  true_positives: 4.1112
+  false_positives: 1.7193
+  last_trigger_date: "2026-10-08T06:04:18Z"
 ---
 
 Review finding arbitration MUST go through the deterministic arbiter, not

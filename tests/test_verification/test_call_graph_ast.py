@@ -196,3 +196,27 @@ class TestCallGraphAST:
 
         result = call_graph.check(str(target), str(tmp_path), exclude_names={"main"})
         assert result.verdict is True, f"Expected PASS: {result.detail}"
+
+    def test_call_graph_fast_mode_skips_external_walk(self, tmp_path, monkeypatch):
+        """When fast_mode=True, call_graph.check performs intra-module checks and skips os.walk."""
+        code = textwrap.dedent("""\
+            def exported():
+                return 1
+
+            __all__ = ['exported']
+        """)
+        target = tmp_path / "module.py"
+        target.write_text(code, encoding="utf-8")
+
+        walk_called = []
+        import os
+        orig_walk = os.walk
+        def mock_walk(*args, **kwargs):
+            walk_called.append(args)
+            return orig_walk(*args, **kwargs)
+        monkeypatch.setattr(os, "walk", mock_walk)
+
+        result = call_graph.check(str(target), str(tmp_path), fast_mode=True)
+        assert result.verdict is True
+        assert len(walk_called) == 0, "fast_mode=True must not execute repo-wide os.walk"
+

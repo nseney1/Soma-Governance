@@ -21,10 +21,10 @@ expiry_days: 90
 fitness:
   score: 0.5714
   impact_weight: 1.0
-  triggers: 29
-  true_positives: 9.9641
-  false_positives: 12.3882
-  last_trigger_date: "2026-10-08T05:01:40Z"
+  triggers: 32
+  true_positives: 11.8889
+  false_positives: 13.1592
+  last_trigger_date: "2026-10-08T06:04:18Z"
 ---
 
 # Refactoring Sweep: Fix One → Fix All

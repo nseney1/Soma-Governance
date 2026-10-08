@@ -446,6 +446,7 @@ class VerificationPipelineResult:
     charge_sheet: ChargeSheet | None = None
     evidence_path: str | None = None
     persistence_error: str | None = None
+    cycle: int | None = None
 
 
 class VerificationPipeline:
@@ -621,6 +622,8 @@ class VerificationPipeline:
 
         res.evidence_path = evidence_path
         res.persistence_error = persistence_error
+        if evidence_path:
+            res.cycle = cycle_num
 
         if attribute and ws:
             from soma_core.attribution import attribute_verification_outcome

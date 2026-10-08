@@ -21,10 +21,10 @@ tags:
 fitness:
   score: 0.0
   impact_weight: 1.0
-  triggers: 22
-  true_positives: 0.4512
-  false_positives: 0.7228
-  last_trigger_date: "2026-10-08T05:01:40Z"
+  triggers: 25
+  true_positives: 0.6212
+  false_positives: 0.7784
+  last_trigger_date: "2026-10-08T06:04:18Z"
 ---
 
 The MCP stdio server is the primary entry point for Claude Code, Cursor, and other

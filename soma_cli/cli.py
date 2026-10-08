@@ -288,6 +288,15 @@ def _build_parser() -> argparse.ArgumentParser:
     p_clean_rules.add_argument("--force", action="store_true", help="Execute removal of leaked rules with quarantine backup")
     p_clean_rules.add_argument("--quarantine-dir", type=str, default="", help="Custom quarantine directory (default: ~/.soma/quarantine)")
 
+    # soma capture-insight
+    p_insight = sub.add_parser("capture-insight", parents=[common_parser], help="Capture a human insight and persist to evidence, optionally scaffolding a Wall cell")
+    p_insight.add_argument("--insight", required=True, type=str, help="Human insight description")
+    p_insight.add_argument("--context-files", nargs="+", required=True, type=str, help="Context files relevant to the insight")
+    p_insight.add_argument("--category", type=str, default=None, help="Insight category (e.g. security, performance, correctness)")
+    p_insight.add_argument("--scaffold-wall", action="store_true", help="Scaffold a Wall cell enforcing invariants for the context files")
+    p_insight.add_argument("--wall-id", type=str, default=None, help="Explicit ID for the scaffolded Wall cell")
+    p_insight.add_argument("--source-conversation", type=str, default=None, help="Source conversation identifier")
+
     return parser
 
 
@@ -454,6 +463,36 @@ def cmd_clean_global_rules(args: argparse.Namespace) -> int:
     return run_clean_rules(args)
 
 
+def cmd_capture_insight(args: argparse.Namespace) -> int:
+    """Capture a human insight and persist it to JSONL, optionally scaffolding a Wall cell."""
+    import json
+    from soma_core.insights import capture_insight
+
+    ws = getattr(args, "ws", None)
+    ws_path = str(ws.root) if ws is not None else (getattr(args, "workspace", None) or getattr(args, "_project_root", None) or ".")
+
+    try:
+        record = capture_insight(
+            workspace=ws_path,
+            insight=getattr(args, "insight", ""),
+            context_files=getattr(args, "context_files", []),
+            source_conversation=getattr(args, "source_conversation", None),
+            category=getattr(args, "category", None),
+            scaffold_wall=bool(getattr(args, "scaffold_wall", False)),
+            wall_id=getattr(args, "wall_id", None),
+        )
+    except Exception as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+
+    if getattr(args, "json", False) or getattr(args, "format", None) == "json":
+        print(json.dumps(record, indent=2))
+    else:
+        wall_msg = f" (scaffolded {record.get('wall_file')})" if record.get("wall_file") else ""
+        print(f"Captured insight for {len(record.get('context_files', []))} files{wall_msg}.")
+    return 0
+
+
 COMMANDS = {
     "init": cmd_init,
     "status": cmd_status,
@@ -479,6 +518,7 @@ COMMANDS = {
     "install": cmd_install,
     "uninstall": cmd_uninstall,
     "clean-global-rules": cmd_clean_global_rules,
+    "capture-insight": cmd_capture_insight,
 }
 
 

@@ -390,5 +390,47 @@ class TestPorcelainCLIFacade:
         data = json.loads((workspace / ".mcp.json").read_text(encoding="utf-8"))
         assert "soma" not in data.get("mcpServers", {})
 
+    def test_capture_insight_subcommand(self, tmp_path, capsys):
+        import json
+        import soma_cli.cli as cli
+        workspace = tmp_path
+        (workspace / ".soma").mkdir(parents=True, exist_ok=True)
+        rc = cli.main([
+            "capture-insight",
+            "--workspace", str(workspace),
+            "--insight", "Avoid raw socket allocations",
+            "--context-files", "net.py",
+            "--category", "security",
+            "--scaffold-wall",
+            "--wall-id", "socket-safe",
+        ])
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "Captured insight" in out
+
+        # Test json format
+        rc_json = cli.main([
+            "capture-insight",
+            "--workspace", str(workspace),
+            "--insight", "Precision issue in division",
+            "--context-files", "calc.py",
+            "--json",
+        ])
+        assert rc_json == 0
+        out_json = capsys.readouterr().out
+        data = json.loads(out_json)
+        assert data["insight"] == "Precision issue in division"
+
+        # Test failure handling
+        rc_err = cli.main([
+            "capture-insight",
+            "--workspace", str(workspace),
+            "--insight", "",
+            "--context-files", "calc.py",
+        ])
+        assert rc_err == 1
+
+
+
 
 

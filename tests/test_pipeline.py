@@ -64,6 +64,7 @@ class TestPipelineEvidencePersistenceAndFailClosed:
         assert ev_file.exists(), "Arbitration evidence must be persisted by VerificationPipeline.run"
         assert res.evidence_path == str(ev_file)
         assert res.persistence_error is None
+        assert res.cycle == 1
         record = json.loads(ev_file.read_text(encoding="utf-8"))
         assert record["cycle"] == 1
         assert record["verdict"] == "ship"

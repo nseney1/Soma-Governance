@@ -169,26 +169,73 @@ def run_review_arbitration(
     return arbitrate(predictions, claims, evidence)
 
 
-def get_next_cycle_number(workspace: str | os.PathLike) -> int:
-    """Find the next arbitration cycle number by scanning existing cycles."""
-    evidence_dir = Path(workspace) / ".soma" / "evidence"
-    if not evidence_dir.is_dir():
-        return 1
-
+def _scan_highest_cycle(evidence_dir: Path) -> int:
+    """Fallback scanner finding the highest cycle number on disk."""
     max_cycle = 0
     pattern = re.compile(r"^arbitration_cycle_(\d+)\.json$")
     try:
-        for entry in evidence_dir.iterdir():
-            if entry.is_file():
-                m = pattern.match(entry.name)
-                if m:
-                    cycle_num = int(m.group(1))
-                    if cycle_num > max_cycle:
-                        max_cycle = cycle_num
+        if evidence_dir.is_dir():
+            for entry in evidence_dir.iterdir():
+                if entry.is_file():
+                    m = pattern.match(entry.name)
+                    if m:
+                        c = int(m.group(1))
+                        if c > max_cycle:
+                            max_cycle = c
     except OSError:
-        return 1
+        pass
+    return max_cycle
 
-    return max_cycle + 1
+
+def get_next_cycle_number(workspace: str | os.PathLike) -> int:
+    """Find the next arbitration cycle number atomically under file lock.
+
+    Maintains `.soma/evidence/.cycle_counter` to avoid O(N) filesystem sweeps,
+    with fallback recovery scanning existing cycles if the counter file is absent or corrupt.
+    """
+    evidence_dir = Path(workspace) / ".soma" / "evidence"
+    try:
+        evidence_dir.mkdir(parents=True, exist_ok=True)
+    except OSError:  # pragma: no cover
+        pass
+
+    counter_file = evidence_dir / ".cycle_counter"
+    lock_file = evidence_dir / ".evidence.lock"
+
+    lock_fd = None
+    try:
+        import fcntl
+        lock_fd = os.open(str(lock_file), os.O_CREAT | os.O_RDWR, 0o644)
+        fcntl.flock(lock_fd, fcntl.LOCK_EX)
+    except Exception:  # pragma: no cover
+        lock_fd = None
+
+    try:
+        highest = _scan_highest_cycle(evidence_dir)
+        current_counter = 0
+        if counter_file.is_file():
+            try:
+                current_counter = int(counter_file.read_text(encoding="utf-8").strip())
+            except (ValueError, OSError):
+                current_counter = 0
+
+        next_cycle = max(current_counter, highest) + 1
+        try:
+            counter_file.write_text(f"{next_cycle}\n", encoding="utf-8")
+        except OSError:  # pragma: no cover
+            pass
+        return next_cycle
+    finally:
+        if lock_fd is not None:
+            try:
+                import fcntl
+                fcntl.flock(lock_fd, fcntl.LOCK_UN)
+            except Exception:  # pragma: no cover
+                pass
+            try:
+                os.close(lock_fd)
+            except Exception:  # pragma: no cover
+                pass
 
 
 def get_latest_arbitration_evidence(workspace: str | os.PathLike) -> tuple[int, dict | None]:
@@ -290,6 +337,15 @@ def save_arbitration_evidence(
         with os.fdopen(tmp_fd, 'w', encoding='utf-8') as f:
             json.dump(record, f, indent=2)
         os.replace(tmp_path, str(target))
+        try:
+            counter_file = evidence_dir / ".cycle_counter"
+            current = 0
+            if counter_file.is_file():
+                current = int(counter_file.read_text(encoding="utf-8").strip())
+            if cycle > current:
+                counter_file.write_text(f"{cycle}\n", encoding="utf-8")
+        except Exception:  # pragma: no cover
+            pass
     except BaseException:
         if os.path.exists(tmp_path):
             os.unlink(tmp_path)

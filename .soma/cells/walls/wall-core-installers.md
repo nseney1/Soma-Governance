@@ -26,10 +26,10 @@ tags:
 fitness:
   score: null
   impact_weight: 1.0
-  triggers: 18
-  true_positives: 1.094
-  false_positives: 2.5212
-  last_trigger_date: "2026-10-08T05:01:40Z"
+  triggers: 21
+  true_positives: 1.181
+  false_positives: 2.5647
+  last_trigger_date: "2026-10-08T06:04:18Z"
 ---
 
 The install flow is the first thing every user touches. Breakage here means

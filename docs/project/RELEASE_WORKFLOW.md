@@ -75,6 +75,7 @@ develop ──→ release/v0.XX ──→ PR to main ──→ tag v0.XX.0 ─�
 | Phase 23 | v0.120.0 ✅ | The Great Cleanse & Project-Wide Compatibility Baseline |
 | Phase 23.1 | v0.120.1 ✅ | Human Review Gate Enforcement & CI Test Suite Repair |
 | Phase 24 | v0.121.0 ✅ | Canonical Verification Pipeline, Fail-Closed Arbitration & Closed-Loop I->W->C |
+| Phase 24.1 | v0.121.1 ✅ | Gate 4.5 Tree Hash Binding, Deduplication & Safety Hardening |
 
 ## Pre-Release Checklist
 

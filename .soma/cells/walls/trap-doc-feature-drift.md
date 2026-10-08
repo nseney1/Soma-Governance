@@ -29,10 +29,10 @@ tags:
 fitness:
   score: 0.6364
   impact_weight: 1.0
-  triggers: 32
-  true_positives: 11.378
-  false_positives: 7.355
-  last_trigger_date: "2026-10-08T05:01:40Z"
+  triggers: 35
+  true_positives: 12.5205
+  false_positives: 7.4975
+  last_trigger_date: "2026-10-08T06:04:18Z"
 ---
 
 Supercell doc-drift incident: Supercell intensity added to README and SKILL.md but

@@ -168,7 +168,8 @@ def run_layer1(
                 continue
             results.append(call_graph.check(
                 full_path, repo_root,
-                exclude_names={'main', '_parse_args', 'parse_args'}
+                exclude_names={'main', '_parse_args', 'parse_args'},
+                fast_mode=fast_mode,
             ))
 
     # ── Import Guards ─────────────────────────────────────────────────

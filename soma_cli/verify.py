@@ -120,19 +120,24 @@ def resolve_target_files(args: argparse.Namespace) -> list[str]:
     except (subprocess.SubprocessError, FileNotFoundError):
         pass
 
-    # In CI pull requests, files may already be committed: check against GITHUB_BASE_REF
-    if not files and os.environ.get("GITHUB_BASE_REF"):
-        base_ref = os.environ["GITHUB_BASE_REF"]
-        for ref in (f"origin/{base_ref}...HEAD", f"{base_ref}...HEAD"):
+    # If working tree is clean (all committed), check branch diff against base branch or HEAD~1
+    if not files:
+        base_candidates = []
+        if os.environ.get("GITHUB_BASE_REF"):
+            base_ref = os.environ["GITHUB_BASE_REF"]
+            base_candidates.extend([f"origin/{base_ref}...HEAD", f"{base_ref}...HEAD"])
+        base_candidates.extend(["origin/main...HEAD", "main...HEAD", "origin/develop...HEAD", "develop...HEAD", "HEAD~1"])
+
+        for ref in base_candidates:
             try:
                 res = subprocess.run(
                     ["git", "diff", "--name-only", "--diff-filter=ACMR", ref],
                     capture_output=True, text=True, timeout=10, cwd=git_cwd,
                 )
                 if res.returncode == 0:
-                    ci_files = [f.strip() for f in res.stdout.splitlines() if f.strip()]
-                    if ci_files:
-                        files = ci_files
+                    cand_files = [f.strip() for f in res.stdout.splitlines() if f.strip()]
+                    if cand_files:
+                        files = cand_files
                         break
             except (subprocess.SubprocessError, FileNotFoundError):
                 pass
@@ -340,9 +345,70 @@ def verify_release_gate(repo_root: str) -> tuple[bool, str]:
             f"with {divergences} divergence(s). Must achieve SHIP verdict before release."
         )
 
-    # Verify scope covers changed files between release and base branch
+    # 1. Clean working tree requirement
     try:
-        git_target = None
+        status_res = subprocess.run(
+            ["git", "status", "--porcelain"],
+            capture_output=True, text=True, cwd=repo_root, timeout=5,
+        )
+        if status_res.returncode != 0:
+            return False, f"Release Gate 4.5 FAIL: git status check failed: {status_res.stderr.strip()}"
+        def _is_dirty(line: str) -> bool:
+            parts = line.strip().split(maxsplit=1)
+            if len(parts) < 2:
+                return False
+            path = parts[1].strip()
+            # Ignore soma runtime evidence, metrics, and telemetry
+            if path.startswith(".soma/evidence") or "/.soma/evidence" in path:
+                return False
+            if path.startswith(".soma/metrics") or "/.soma/metrics" in path:
+                return False
+            if path.startswith(".soma/telemetry") or "/.soma/telemetry" in path:
+                return False
+            if path == ".soma/cells/fitness.jsonl" or path.endswith("/.soma/cells/fitness.jsonl"):
+                return False
+            if path == ".soma/human_insights.jsonl" or path.endswith("/.soma/human_insights.jsonl"):
+                return False
+            # Ignore test runners and python cache artifacts
+            if "__pycache__" in path or path.endswith(".pyc"):
+                return False
+            if ".pytest_cache" in path:
+                return False
+            return True
+
+        dirty_lines = [line for line in status_res.stdout.splitlines() if line.strip() and _is_dirty(line)]
+        if dirty_lines:
+            return False, (
+                f"Release Gate 4.5 FAIL: Working tree is dirty ({len(dirty_lines)} modified/untracked files). "
+                f"Clean working tree required for release verification."
+            )
+    except Exception as e:
+        return False, f"Release Gate 4.5 FAIL: git status execution failed: {e}"
+
+    # 2. Cryptographic Tree Hash Assertion
+    recorded_tree = data.get("tree_hash")
+    if not recorded_tree:
+        return False, f"Release Gate 4.5 FAIL: Arbitration cycle {cycle_num} missing cryptographic tree_hash binding."
+
+    try:
+        tree_res = subprocess.run(
+            ["git", "rev-parse", "HEAD^{tree}"],
+            capture_output=True, text=True, cwd=repo_root, timeout=5,
+        )
+        if tree_res.returncode != 0:
+            return False, f"Release Gate 4.5 FAIL: git rev-parse HEAD^{{tree}} failed: {tree_res.stderr.strip()}"
+        current_tree = tree_res.stdout.strip()
+        if current_tree != recorded_tree:
+            return False, (
+                f"Release Gate 4.5 FAIL: Tree hash mismatch. Current tree '{current_tree}' does not match "
+                f"arbitration receipt tree '{recorded_tree}'. Code was modified after verification."
+            )
+    except Exception as e:
+        return False, f"Release Gate 4.5 FAIL: git tree hash resolution failed: {e}"
+
+    # 3. Target File Coverage & Diff Resolution
+    git_target = None
+    try:
         for cand in ("origin/main...HEAD", "main...HEAD", "origin/develop...HEAD", "HEAD~1"):
             res = subprocess.run(
                 ["git", "diff", "--name-only", "--diff-filter=ACMR", cand],
@@ -351,25 +417,36 @@ def verify_release_gate(repo_root: str) -> tuple[bool, str]:
             if res.returncode == 0:
                 git_target = res.stdout.splitlines()
                 break
-        if git_target is not None:
-            py_changed = [f.strip() for f in git_target if f.strip().endswith(".py")]
-            recorded_targets = set(data.get("target_files", []))
-            if recorded_targets and py_changed:
-                uncovered = [
-                    f for f in py_changed
-                    if f not in recorded_targets
-                    and not f.startswith("tests/")
-                    and not f.endswith("__init__.py")
-                ]
-                if uncovered:
-                    return False, (
-                        f"Release Gate 4.5 FAIL: Arbitration cycle {cycle_num} does not cover changed files: "
-                        f"{', '.join(uncovered)}"
-                    )
-    except Exception:
-        pass
+    except Exception as e:
+        return False, f"Release Gate 4.5 FAIL: git diff execution failed: {e}"
 
-    return True, f"Release Gate 4.5 PASS: Arbitration cycle {cycle_num} verified with SHIP verdict."
+    if git_target is None:
+        return False, "Release Gate 4.5 FAIL: Unable to resolve git diff against base branch."
+
+    py_changed = [
+        f.strip() for f in git_target
+        if f.strip().endswith(".py")
+        and not f.startswith("tests/")
+        and not f.endswith("__init__.py")
+    ]
+    if not py_changed:
+        return True, f"Release Gate 4.5 PASS: Arbitration cycle {cycle_num} verified with SHIP verdict (tree {recorded_tree[:8]})."
+
+    recorded_targets = set(data.get("target_files", []))
+    if not recorded_targets:
+        return False, (
+            f"Release Gate 4.5 FAIL: Arbitration cycle {cycle_num} has empty target_files, "
+            f"but {len(py_changed)} non-test Python files were modified in branch diff."
+        )
+
+    uncovered = [f for f in py_changed if f not in recorded_targets]
+    if uncovered:
+        return False, (
+            f"Release Gate 4.5 FAIL: Arbitration cycle {cycle_num} does not cover changed files: "
+            f"{', '.join(uncovered)}"
+        )
+
+    return True, f"Release Gate 4.5 PASS: Arbitration cycle {cycle_num} verified with SHIP verdict (tree {recorded_tree[:8]})."
 
 
 # ── Main Handler ──────────────────────────────────────────────────────
@@ -549,7 +626,9 @@ def run_verify(args: argparse.Namespace) -> int:
     if pipeline_res.evidence_path:
         print(f"Arbitration evidence saved: {pipeline_res.evidence_path}")
     elif getattr(pipeline_res, "persistence_error", None):
-        print(f"Warning: could not save arbitration evidence: {pipeline_res.persistence_error}", file=sys.stderr)
+        print(f"Error: Could not save arbitration evidence: {pipeline_res.persistence_error}", file=sys.stderr)
+        _record_telemetry(False, "BLOCK")
+        return 1
 
     l2_exit = verdict_to_exit_code(pipeline_res.verdict)
     overall_passed = bool(layer1_pass and l2_exit == 0)

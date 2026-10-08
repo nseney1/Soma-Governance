@@ -20,10 +20,10 @@ expiry_days: 90
 fitness:
   score: 0.5
   impact_weight: 1.0
-  triggers: 26
-  true_positives: 7.9641
-  false_positives: 11.3882
-  last_trigger_date: "2026-10-08T05:01:40Z"
+  triggers: 29
+  true_positives: 9.8889
+  false_positives: 12.1592
+  last_trigger_date: "2026-10-08T06:04:18Z"
 ---
 
 # Trap: Unverified Delegation

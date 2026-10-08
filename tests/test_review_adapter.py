@@ -184,6 +184,49 @@ class TestCycleHelpers:
                 f.write("{}")
             assert get_next_cycle_number(tmpdir) == 5
 
+    def test_cycle_counter_file_created_and_atomic(self):
+        """Verify .cycle_counter persists monotonic increments under lock."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            counter_file = os.path.join(tmpdir, ".soma", "evidence", ".cycle_counter")
+            c1 = get_next_cycle_number(tmpdir)
+            assert c1 == 1
+            assert os.path.isfile(counter_file)
+            with open(counter_file, "r") as f:
+                assert f.read().strip() == "1"
+
+            c2 = get_next_cycle_number(tmpdir)
+            assert c2 == 2
+            with open(counter_file, "r") as f:
+                assert f.read().strip() == "2"
+
+    def test_cycle_counter_fallback_recovery(self):
+        """Verify fallback recovery scans directory if counter file is missing or corrupted."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ev_dir = os.path.join(tmpdir, ".soma", "evidence")
+            os.makedirs(ev_dir, exist_ok=True)
+            with open(os.path.join(ev_dir, "arbitration_cycle_7.json"), "w") as f:
+                f.write("{}")
+            counter_file = os.path.join(ev_dir, ".cycle_counter")
+            # Counter missing
+            assert not os.path.exists(counter_file)
+            assert get_next_cycle_number(tmpdir) == 8
+            assert os.path.isfile(counter_file)
+            with open(counter_file, "r") as f:
+                assert f.read().strip() == "8"
+
+            # Counter corrupted without file written: recovers to 8 from disk
+            with open(counter_file, "w") as f:
+                f.write("corrupt_data")
+            assert get_next_cycle_number(tmpdir) == 8
+
+            # When arbitration_cycle_8.json is saved and counter is corrupted: recovers to 9
+            with open(os.path.join(ev_dir, "arbitration_cycle_8.json"), "w") as f:
+                f.write("{}")
+            with open(counter_file, "w") as f:
+                f.write("corrupt_data")
+            assert get_next_cycle_number(tmpdir) == 9
+
+
     def test_get_latest_arbitration_evidence_empty(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             cycle, data = get_latest_arbitration_evidence(tmpdir)
@@ -334,6 +377,29 @@ class TestCycleHelpers:
             assert "arbitration_cycle_2.json" in p2
             with open(p2) as f:
                 assert json.load(f)["cycle"] == 2
+
+            counter_file = os.path.join(tmpdir, ".soma", "evidence", ".cycle_counter")
+            assert os.path.isfile(counter_file)
+            with open(counter_file) as f:
+                assert f.read().strip() == "2"
+
+            # Explicit higher cycle updates counter
+            save_arbitration_evidence(res, tmpdir, cycle=10)
+            with open(counter_file) as f:
+                assert f.read().strip() == "10"
+
+            # Explicit lower cycle does not decrease counter
+            save_arbitration_evidence(res, tmpdir, cycle=5)
+            with open(counter_file) as f:
+                assert f.read().strip() == "10"
+
+        with tempfile.TemporaryDirectory() as fresh_dir:
+            # Explicit cycle=1 in fresh dir without pre-existing counter
+            save_arbitration_evidence(res, fresh_dir, cycle=1)
+            fresh_cf = os.path.join(fresh_dir, ".soma", "evidence", ".cycle_counter")
+            assert os.path.isfile(fresh_cf)
+            with open(fresh_cf) as f:
+                assert f.read().strip() == "1"
 
     def test_save_arbitration_evidence_git_metadata(self):
         from pathlib import Path

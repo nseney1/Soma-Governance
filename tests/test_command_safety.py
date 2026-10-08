@@ -311,3 +311,13 @@ class TestCommandAnalyzerBehavioral:
         res_abort = CommandAnalyzer.evaluate("git merge --abort")
         assert res_abort.is_destructive is False
 
+    def test_git_global_flags_git_dir(self):
+        """Verify git --git-dir <path> does not mask destructive subcommands."""
+        res = CommandAnalyzer.evaluate("git --git-dir /custom/.git push origin main")
+        assert res.is_destructive is True
+        assert res.reason == REASON_PROTECTED_BRANCH
+
+        res_branch = CommandAnalyzer.evaluate("git --git-dir /custom/.git branch -D feat")
+        assert res_branch.is_destructive is True
+        assert res_branch.reason == REASON_GIT_BRANCH
+

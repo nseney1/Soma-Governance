@@ -939,23 +939,9 @@ def _handle_verify_changes(args: dict, gov) -> dict:
             "evidence": evidence,
         }
         if pipeline_res.arbitration_result:
-            try:
-                from soma_core.verification.review_adapter import (
-                    get_next_cycle_number,
-                    save_arbitration_evidence,
-                )
-                ws_root = getattr(workspace, "root", workspace)
-                cycle_num = get_next_cycle_number(ws_root)
-                ev_path = save_arbitration_evidence(
-                    result=pipeline_res.arbitration_result,
-                    workspace=ws_root,
-                    cycle=cycle_num,
-                    target_files=files,
-                )
-                resp["evidence_file"] = ev_path
-                resp["cycle"] = cycle_num
-            except Exception:
-                pass
+            if pipeline_res.evidence_path:
+                resp["evidence_file"] = pipeline_res.evidence_path
+                resp["cycle"] = getattr(pipeline_res, "cycle", None)
             resp["divergences"] = [
                 {
                     "category": d.category.value,

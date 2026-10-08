@@ -18,11 +18,11 @@ tags:
   - review-escalation
 created: 2026-09-28
 fitness:
-  triggers: 28
-  true_positives: 7.9666
-  false_positives: 11.1419
+  triggers: 31
+  true_positives: 8.5132
+  false_positives: 11.3858
   score: 0.5
-  last_trigger_date: "2026-10-08T05:01:40Z"
+  last_trigger_date: "2026-10-08T06:04:18Z"
 ---
 
 # Membrane: Enzymes Escalation

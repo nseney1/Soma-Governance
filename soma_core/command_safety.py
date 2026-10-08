@@ -78,7 +78,7 @@ EXEC_FLAGS_WITH_ARG = frozenset({
 })
 
 GIT_GLOBAL_FLAGS_WITH_ARG = frozenset({
-    "-C", "-c", "--exec-path", "--config-env", "--work-tree", "--namespace"
+    "-C", "-c", "--exec-path", "--config-env", "--work-tree", "--namespace", "--git-dir"
 })
 
 GH_GLOBAL_FLAGS_WITH_ARG = frozenset({

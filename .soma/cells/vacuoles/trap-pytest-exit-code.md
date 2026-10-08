@@ -18,11 +18,11 @@ tags:
   - testing
 created: 2026-09-28
 fitness:
-  triggers: 25
-  true_positives: 7.2071
-  false_positives: 9.1614
+  triggers: 28
+  true_positives: 8.8306
+  false_positives: 9.7899
   score: 0.6667
-  last_trigger_date: "2026-10-08T05:01:40Z"
+  last_trigger_date: "2026-10-08T06:04:18Z"
 ---
 
 # Trap: Pytest Exit Code 5

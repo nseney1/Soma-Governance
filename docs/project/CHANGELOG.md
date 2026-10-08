@@ -3,6 +3,27 @@
 All notable changes to Soma are documented here.
 This project uses [Semantic Versioning](https://semver.org/).
 
+## [0.121.1] — 2026-10-08 — "Gate 4.5 Tree Hash Binding, Deduplication & Safety Hardening"
+
+### Security, Verification & Safety Hardening
+- **Gate 4.5 Cryptographic Tree Hash Binding (`soma_cli/verify.py`)**:
+  - Binds arbitration receipts strictly to git tree hashes via `git rev-parse HEAD^{tree}`, preventing unverified code mutations after arbitration.
+  - Enforces clean working trees (`git status --porcelain`) prior to release, ignoring runtime evidence ledgers (`.soma/evidence/`, `.soma/metrics/`, `.soma/telemetry/`) and Python test caches (`__pycache__`, `.pytest_cache`).
+  - Eliminates silent exception swallowing (`except Exception: pass`) in release gate checks to fail closed on repository execution errors.
+- **MCP Evidence Deduplication (`soma_mcp/tools.py`)**:
+  - Removes redundant second persistence call in `_handle_verify_changes`, establishing `VerificationPipeline` as the single canonical evidence writer.
+- **Atomic Cycle Counter (`soma_core/verification/review_adapter.py`)**:
+  - Introduces `.soma/evidence/.cycle_counter` with atomic POSIX file locking (`.evidence.lock` via `fcntl.flock`) and automatic recovery via directory sweep.
+  - Synchronizes cycle numbers across all evidence writes to prevent race conditions.
+- **Fail-Closed Verification Persistence (`soma_cli/verify.py`)**:
+  - Exits code 1 and records blocking telemetry if evidence persistence fails.
+- **Command Safety Global Flags (`soma_core/command_safety.py`)**:
+  - Adds `"--git-dir"` to `GIT_GLOBAL_FLAGS_WITH_ARG`, preventing escape from protected branch and repository mutation checks.
+- **Call Graph Pre-Commit Fast Mode (`soma_core/verification/call_graph.py`, `runner.py`)**:
+  - Adds `fast_mode` support to skip repository-wide `os.walk` in pre-commit hooks, preserving the $<300\text{ ms}$ latency budget.
+- **CLI Porcelain for Human Insights (`soma_cli/cli.py`)**:
+  - Exposes `soma capture-insight` CLI command with `--insight`, `--context-files`, `--category`, `--scaffold-wall`, and `--wall-id` flags.
+
 ## [0.121.0] — 2026-10-08 — "Canonical Verification Pipeline, Fail-Closed Arbitration & Closed-Loop I->W->C"
 
 ### Canonical Verification Pipeline, Fail-Closed Arbitration & Closed-Loop I->W->C

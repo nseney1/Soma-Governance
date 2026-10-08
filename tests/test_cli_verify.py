@@ -815,9 +815,11 @@ class TestReleaseGateCheck:
         captured = capsys.readouterr()
         assert "REVISE" in captured.err or "REVISE" in captured.out
 
-    def test_release_gate_ship_verdict_exits_zero(self, tmp_path, capsys):
+    def test_release_gate_ship_verdict_exits_zero(self, tmp_path, capsys, monkeypatch):
         """Release gate check passes with code 0 if latest cycle verdict is SHIP."""
         from soma_cli.verify import run_verify
+        import subprocess
+
         ev_dir = tmp_path / ".soma" / "evidence"
         ev_dir.mkdir(parents=True)
         (ev_dir / "arbitration_cycle_1.json").write_text(
@@ -826,9 +828,21 @@ class TestReleaseGateCheck:
                 "verdict": "ship",
                 "divergence_count": 0,
                 "target_files": [],
+                "tree_hash": "tree_dummy_hash",
             }),
             encoding="utf-8",
         )
+        def mock_git(cmd, *args, **kwargs):
+            if isinstance(cmd, list):
+                if cmd[1] == "status":
+                    return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+                if cmd[1] == "rev-parse":
+                    return subprocess.CompletedProcess(cmd, 0, stdout="tree_dummy_hash\n", stderr="")
+                if cmd[1] == "diff":
+                    return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+        monkeypatch.setattr(subprocess, "run", mock_git)
+
         args = argparse.Namespace(release_gate=True, workspace=str(tmp_path), repo_root=str(tmp_path), files=None)
         assert run_verify(args) == 0
         exit_code = main(["verify", "--release-gate", "--workspace", str(tmp_path)])
@@ -846,15 +860,20 @@ class TestReleaseGateCheck:
                 "verdict": "ship",
                 "divergence_count": 0,
                 "target_files": ["soma_core/app.py"],
+                "tree_hash": "tree_dummy_hash",
             }),
             encoding="utf-8",
         )
         import subprocess
-        real_run = subprocess.run
         def mock_run(cmd, *args, **kwargs):
-            if isinstance(cmd, list) and len(cmd) >= 2 and cmd[0] == "git" and cmd[1] == "diff":
-                return subprocess.CompletedProcess(cmd, 0, stdout="soma_core/app.py\nsoma_core/uncovered.py\n", stderr="")
-            return real_run(cmd, *args, **kwargs)
+            if isinstance(cmd, list):
+                if cmd[1] == "status":
+                    return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+                if cmd[1] == "rev-parse":
+                    return subprocess.CompletedProcess(cmd, 0, stdout="tree_dummy_hash\n", stderr="")
+                if cmd[1] == "diff":
+                    return subprocess.CompletedProcess(cmd, 0, stdout="soma_core/app.py\nsoma_core/uncovered.py\n", stderr="")
+            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
         monkeypatch.setattr(subprocess, "run", mock_run)
 
         exit_code = main(["verify", "--release-gate", "--workspace", str(tmp_path)])
@@ -920,7 +939,7 @@ class TestReleaseGateCheck:
         assert files == []
 
     def test_verify_release_gate_git_diff_exception(self, tmp_path, monkeypatch):
-        """verify_release_gate tolerates git diff subprocess exceptions gracefully."""
+        """verify_release_gate fails closed if git commands fail."""
         from soma_cli.verify import verify_release_gate
         import subprocess
 
@@ -930,6 +949,7 @@ class TestReleaseGateCheck:
             "verdict": "ship",
             "cycle": 1,
             "target_files": ["soma_core/app.py"],
+            "tree_hash": "abc12345",
         }))
 
         def mock_run(cmd, *args, **kwargs):
@@ -937,11 +957,11 @@ class TestReleaseGateCheck:
         monkeypatch.setattr(subprocess, "run", mock_run)
 
         passed, msg = verify_release_gate(str(tmp_path))
-        assert passed is True
-        assert "Release Gate 4.5 PASS" in msg
+        assert passed is False
+        assert "Release Gate 4.5 FAIL" in msg
 
     def test_run_verify_save_arbitration_evidence_exception(self, tmp_path, monkeypatch, capsys):
-        """run_verify catches and logs exception if saving arbitration evidence fails."""
+        """run_verify catches exception and fails closed (exit 1) if saving arbitration evidence fails."""
         import json
         from soma_cli.verify import run_verify
         from soma_core.verification import ToolEvidence, ArbitrationResult, Verdict
@@ -956,6 +976,11 @@ class TestReleaseGateCheck:
             strict=False,
             repo_root=str(tmp_path),
             workspace=str(tmp_path),
+            dry_run=False,
+            release_gate=False,
+            rebuttal=None,
+            plan_file=None,
+            provider=None,
         )
 
         monkeypatch.setattr("soma_core.verification.runner.run_layer1", lambda *a, **kw: [
@@ -978,9 +1003,9 @@ class TestReleaseGateCheck:
         monkeypatch.setattr("soma_core.verification.review_adapter.save_arbitration_evidence", mock_save)
 
         exit_code = run_verify(args)
-        assert exit_code == 0
+        assert exit_code == 1
         captured = capsys.readouterr()
-        assert "Warning: could not save arbitration evidence: disk full simulation" in captured.err
+        assert "could not save arbitration evidence: disk full simulation" in captured.err.lower()
 
     def test_resolve_target_files_github_base_ref_local_branch_fallback(self, tmp_path, monkeypatch):
         """resolve_target_files falls back to local ref when origin/ref returns empty."""
@@ -1006,12 +1031,23 @@ class TestReleaseGateCheck:
         import subprocess
 
         def mock_evidence(root):
-            return 1, {"verdict": "ship", "target_files": ["soma_core/runner.py"]}
+            return 1, {
+                "verdict": "ship",
+                "target_files": ["soma_core/runner.py"],
+                "tree_hash": "tree_hash_abc123",
+            }
         monkeypatch.setattr("soma_core.verification.review_adapter.get_latest_arbitration_evidence", mock_evidence)
 
-        def mock_diff(cmd, *args, **kwargs):
-            return subprocess.CompletedProcess(cmd, 0, stdout="soma_core/runner.py\n", stderr="")
-        monkeypatch.setattr(subprocess, "run", mock_diff)
+        def mock_git(cmd, *args, **kwargs):
+            if isinstance(cmd, list):
+                if cmd[1] == "status":
+                    return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+                if cmd[1] == "rev-parse":
+                    return subprocess.CompletedProcess(cmd, 0, stdout="tree_hash_abc123\n", stderr="")
+                if cmd[1] == "diff":
+                    return subprocess.CompletedProcess(cmd, 0, stdout="soma_core/runner.py\n", stderr="")
+            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+        monkeypatch.setattr(subprocess, "run", mock_git)
 
         passed, msg = verify_release_gate(str(tmp_path))
         assert passed is True
@@ -1026,6 +1062,307 @@ class TestReleaseGateCheck:
         assert exit_code == 0
         captured = capsys.readouterr()
         assert "Release Gate 4.5 PASS" in captured.out
+
+    def test_verify_release_gate_fails_when_tree_hash_missing(self, tmp_path, monkeypatch):
+        """verify_release_gate fails closed if arbitration receipt lacks tree_hash."""
+        from soma_cli.verify import verify_release_gate
+        import subprocess
+
+        def mock_evidence(root):
+            return 1, {"verdict": "ship", "target_files": ["soma_core/runner.py"]}
+        monkeypatch.setattr("soma_core.verification.review_adapter.get_latest_arbitration_evidence", mock_evidence)
+        monkeypatch.setattr(subprocess, "run", lambda cmd, *a, **k: subprocess.CompletedProcess(cmd, 0, stdout="", stderr=""))
+
+        passed, msg = verify_release_gate(str(tmp_path))
+        assert passed is False
+        assert "missing cryptographic tree_hash" in msg
+
+    def test_verify_release_gate_fails_when_tree_hash_mismatches(self, tmp_path, monkeypatch):
+        """verify_release_gate fails closed if current HEAD^{tree} differs from receipt."""
+        from soma_cli.verify import verify_release_gate
+        import subprocess
+
+        def mock_evidence(root):
+            return 1, {
+                "verdict": "ship",
+                "target_files": ["soma_core/runner.py"],
+                "tree_hash": "tree_receipt_111",
+            }
+        monkeypatch.setattr("soma_core.verification.review_adapter.get_latest_arbitration_evidence", mock_evidence)
+
+        def mock_git(cmd, *args, **kwargs):
+            if isinstance(cmd, list):
+                if cmd[1] == "status":
+                    return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+                if cmd[1] == "rev-parse":
+                    return subprocess.CompletedProcess(cmd, 0, stdout="tree_current_222\n", stderr="")
+            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+        monkeypatch.setattr(subprocess, "run", mock_git)
+
+        passed, msg = verify_release_gate(str(tmp_path))
+        assert passed is False
+        assert "Tree hash mismatch" in msg
+
+    def test_verify_release_gate_fails_when_working_tree_dirty(self, tmp_path, monkeypatch):
+        """verify_release_gate fails closed if uncommitted/unstaged changes exist."""
+        from soma_cli.verify import verify_release_gate
+        import subprocess
+
+        def mock_evidence(root):
+            return 1, {
+                "verdict": "ship",
+                "target_files": ["soma_core/runner.py"],
+                "tree_hash": "tree_123",
+            }
+        monkeypatch.setattr("soma_core.verification.review_adapter.get_latest_arbitration_evidence", mock_evidence)
+
+        def mock_git(cmd, *args, **kwargs):
+            if isinstance(cmd, list) and cmd[1] == "status":
+                return subprocess.CompletedProcess(cmd, 0, stdout=" M dirty_file.py\n", stderr="")
+            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+        monkeypatch.setattr(subprocess, "run", mock_git)
+
+        passed, msg = verify_release_gate(str(tmp_path))
+        assert passed is False
+        assert "Working tree is dirty" in msg
+
+    def test_verify_release_gate_fails_when_target_files_empty(self, tmp_path, monkeypatch):
+        """verify_release_gate fails closed if target_files is empty but python files modified."""
+        from soma_cli.verify import verify_release_gate
+        import subprocess
+
+        def mock_evidence(root):
+            return 1, {
+                "verdict": "ship",
+                "target_files": [],
+                "tree_hash": "tree_123",
+            }
+        monkeypatch.setattr("soma_core.verification.review_adapter.get_latest_arbitration_evidence", mock_evidence)
+
+        def mock_git(cmd, *args, **kwargs):
+            if isinstance(cmd, list):
+                if cmd[1] == "status":
+                    return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+                if cmd[1] == "rev-parse":
+                    return subprocess.CompletedProcess(cmd, 0, stdout="tree_123\n", stderr="")
+                if cmd[1] == "diff":
+                    return subprocess.CompletedProcess(cmd, 0, stdout="soma_core/mod.py\n", stderr="")
+            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+        monkeypatch.setattr(subprocess, "run", mock_git)
+
+        passed, msg = verify_release_gate(str(tmp_path))
+        assert passed is False
+        assert "empty target_files" in msg
+
+
+    def test_run_verify_fails_closed_when_evidence_persistence_fails(self, tmp_path, monkeypatch, capsys):
+        """run_verify must exit 1 (fail closed) if arbitration evidence fails to persist."""
+        from soma_cli.verify import run_verify
+        from soma_core.verification.pipeline import VerificationPipeline, VerificationPipelineResult
+        from soma_core.verification import Verdict, ToolEvidence
+
+        dummy_file = tmp_path / "mod.py"
+        dummy_file.write_text("def f(): pass\n", encoding="utf-8")
+
+        mock_res = VerificationPipelineResult(
+            target_files=["mod.py"],
+            layer1_evidence=[ToolEvidence(tool="syntax", target="mod.py", verdict=True, detail="ok")],
+            layer1_passed=True,
+            verdict=Verdict.SHIP,
+            passed=True,
+            summary="All passed",
+            arbitration_result=None,
+            evidence_path=None,
+            persistence_error="Simulated disk write failure: read-only filesystem",
+        )
+
+        class MockProvider:
+            def generate(self, prompt):
+                return "[]"
+
+        class MockRunner:
+            @staticmethod
+            def run_layer1(changed_files, repo_root, **kwargs):
+                return [ToolEvidence(tool="syntax", target="mod.py", verdict=True, detail="ok")]
+            @staticmethod
+            def gate_verdict(results):
+                return Verdict.SHIP
+            @staticmethod
+            def format_summary(results):
+                return "Layer 1 passed"
+
+        monkeypatch.setattr(
+            "soma_cli.verify._get_verification",
+            lambda: (MockRunner, Verdict),
+        )
+        monkeypatch.setattr(
+            "soma_cli.verify.resolve_cli_provider",
+            lambda args, root: MockProvider(),
+        )
+        monkeypatch.setattr(
+            "soma_cli.verify.resolve_task_plan",
+            lambda args, root: "Dummy plan",
+        )
+        monkeypatch.setattr(
+            "soma_cli.verify.discover_test_evidence",
+            lambda targets, root: (["test_f"], "1 passed"),
+        )
+        monkeypatch.setattr(
+            VerificationPipeline,
+            "run",
+            lambda *args, **kwargs: mock_res,
+        )
+
+        telemetry_calls = []
+        monkeypatch.setattr(
+            "soma_core.outcomes.record_verification_telemetry",
+            lambda *args, **kwargs: telemetry_calls.append(kwargs),
+        )
+
+        args = argparse.Namespace(
+            files=[str(dummy_file)],
+            repo_root=str(tmp_path),
+            workspace=str(tmp_path),
+            layer1_only=False,
+            dry_run=False,
+            release_gate=False,
+            rebuttal=None,
+            plan="Dummy plan",
+            plan_file=None,
+            provider=None,
+        )
+
+        exit_code = run_verify(args)
+        assert exit_code == 1, "run_verify must exit 1 when persistence fails"
+        assert any(c.get("passed") is False and c.get("verdict") == "BLOCK" for c in telemetry_calls)
+        captured = capsys.readouterr()
+        assert "could not save arbitration evidence" in captured.err.lower() or "failed" in captured.err.lower()
+
+    def test_verify_release_gate_ignores_soma_evidence_and_pycache(self, tmp_path, monkeypatch):
+        """verify_release_gate ignores runtime evidence, telemetry, insights, and python/pytest caches."""
+        from soma_cli.verify import verify_release_gate
+        import subprocess
+
+        def mock_evidence(root):
+            return 1, {
+                "verdict": "ship",
+                "target_files": ["soma_core/runner.py"],
+                "tree_hash": "tree_clean_123",
+            }
+        monkeypatch.setattr("soma_core.verification.review_adapter.get_latest_arbitration_evidence", mock_evidence)
+
+        status_output = (
+            "??\n"
+            "?? .soma/evidence/arbitration_cycle_1.json\n"
+            "?? .soma/evidence/.cycle_counter\n"
+            "?? .soma/metrics/escaped_defects.jsonl\n"
+            "?? .soma/telemetry/signals.jsonl\n"
+            "?? .soma/cells/fitness.jsonl\n"
+            "?? .soma/human_insights.jsonl\n"
+            "?? __pycache__/runner.cpython-312.pyc\n"
+            "?? .pytest_cache/v/cache/lastfailed\n"
+        )
+
+        def mock_git(cmd, *args, **kwargs):
+            if isinstance(cmd, list):
+                if cmd[1] == "status":
+                    return subprocess.CompletedProcess(cmd, 0, stdout=status_output, stderr="")
+                if cmd[1] == "rev-parse":
+                    return subprocess.CompletedProcess(cmd, 0, stdout="tree_clean_123\n", stderr="")
+                if cmd[1] == "diff":
+                    return subprocess.CompletedProcess(cmd, 0, stdout="soma_core/runner.py\n", stderr="")
+            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+        monkeypatch.setattr(subprocess, "run", mock_git)
+
+        passed, msg = verify_release_gate(str(tmp_path))
+        assert passed is True
+        assert "Release Gate 4.5 PASS" in msg
+
+    def test_verify_release_gate_git_status_failure(self, tmp_path, monkeypatch):
+        from soma_cli.verify import verify_release_gate
+        import subprocess
+
+        def mock_evidence(root):
+            return 1, {"verdict": "ship", "target_files": ["runner.py"], "tree_hash": "t1"}
+        monkeypatch.setattr("soma_core.verification.review_adapter.get_latest_arbitration_evidence", mock_evidence)
+
+        # Non-zero exit code
+        def mock_fail(cmd, *a, **k):
+            if cmd[1] == "status":
+                return subprocess.CompletedProcess(cmd, 128, stdout="", stderr="fatal: not a git repo")
+            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+        monkeypatch.setattr(subprocess, "run", mock_fail)
+        passed, msg = verify_release_gate(str(tmp_path))
+        assert passed is False
+        assert "git status check failed" in msg
+
+        # Exception
+        monkeypatch.setattr(subprocess, "run", lambda *a, **k: (_ for _ in ()).throw(OSError("git not found")))
+        passed, msg = verify_release_gate(str(tmp_path))
+        assert passed is False
+        assert "git status execution failed" in msg
+
+    def test_verify_release_gate_git_rev_parse_and_diff_failures(self, tmp_path, monkeypatch):
+        from soma_cli.verify import verify_release_gate
+        import subprocess
+
+        def mock_evidence(root):
+            return 1, {"verdict": "ship", "target_files": ["runner.py"], "tree_hash": "t1"}
+        monkeypatch.setattr("soma_core.verification.review_adapter.get_latest_arbitration_evidence", mock_evidence)
+
+        # rev-parse non-zero
+        def mock_git(cmd, *a, **k):
+            if cmd[1] == "status":
+                return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+            if cmd[1] == "rev-parse":
+                return subprocess.CompletedProcess(cmd, 1, stdout="", stderr="rev-parse error")
+            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+        monkeypatch.setattr(subprocess, "run", mock_git)
+        passed, msg = verify_release_gate(str(tmp_path))
+        assert passed is False
+        assert "rev-parse HEAD^{tree} failed" in msg
+
+        # rev-parse exception
+        def mock_rev_exc(cmd, *a, **k):
+            if cmd[1] == "status":
+                return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+            if cmd[1] == "rev-parse":
+                raise OSError("tree parse timeout")
+            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+        monkeypatch.setattr(subprocess, "run", mock_rev_exc)
+        passed, msg = verify_release_gate(str(tmp_path))
+        assert passed is False
+        assert "tree hash resolution failed" in msg
+
+        # diff exception
+        def mock_diff_exc(cmd, *a, **k):
+            if cmd[1] == "status":
+                return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+            if cmd[1] == "rev-parse":
+                return subprocess.CompletedProcess(cmd, 0, stdout="t1\n", stderr="")
+            if cmd[1] == "diff":
+                raise OSError("diff timeout")
+            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+        monkeypatch.setattr(subprocess, "run", mock_diff_exc)
+        passed, msg = verify_release_gate(str(tmp_path))
+        assert passed is False
+        assert "git diff execution failed" in msg
+
+        # diff resolution failure (all diff candidates non-zero)
+        def mock_diff_fail(cmd, *a, **k):
+            if cmd[1] == "status":
+                return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+            if cmd[1] == "rev-parse":
+                return subprocess.CompletedProcess(cmd, 0, stdout="t1\n", stderr="")
+            if cmd[1] == "diff":
+                return subprocess.CompletedProcess(cmd, 1, stdout="", stderr="branch not found")
+            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+        monkeypatch.setattr(subprocess, "run", mock_diff_fail)
+        passed, msg = verify_release_gate(str(tmp_path))
+        assert passed is False
+        assert "Unable to resolve git diff against base branch" in msg
+
+
 
 
 
