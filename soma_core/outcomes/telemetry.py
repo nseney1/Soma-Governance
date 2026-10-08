@@ -12,6 +12,15 @@ from typing import Any, Optional
 
 from soma_core.workspace import Workspace, as_workspace, resolve_workspace
 
+__all__ = [
+    "VERIFY_TIMEOUT",
+    "detect_test_runner",
+    "capture_test_outcome",
+    "capture_build_outcome",
+    "capture_mcp_outcomes",
+    "record_verification_telemetry",
+]
+
 VERIFY_TIMEOUT = int(os.environ.get("SOMA_VERIFY_TIMEOUT", "60"))
 
 

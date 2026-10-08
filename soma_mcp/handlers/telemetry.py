@@ -11,6 +11,14 @@ from soma_mcp.registry import (
     _get_workspace,
 )
 
+__all__ = [
+    "_handle_report_outcome",
+    "_handle_capture_insight",
+    "_handle_grade",
+    "_handle_coverage",
+    "_handle_fitness",
+]
+
 
 def _handle_report_outcome(args: dict, gov) -> dict:
     try:

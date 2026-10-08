@@ -133,3 +133,54 @@ def test_cli_harvest_git_command(git_workspace: Path):
 
     sig_file = git_workspace / ".soma" / "evidence" / "signals.jsonl"
     assert sig_file.exists()
+
+
+def test_capture_git_signals(git_workspace: Path):
+    """Test capture_git_signals with reverts and rework."""
+    from soma_core.outcomes.harvest import capture_git_signals
+    # Commit a file, then revert it
+    _commit_file(git_workspace, "rework.py", "v1\n", "v1")
+    _commit_file(git_workspace, "rework.py", "v2\n", "v2 rework")
+    _commit_file(git_workspace, "other.py", "x\n", "Revert 'something bad'")
+    
+    signals = capture_git_signals(str(git_workspace))
+    assert signals["reverts"] >= 1
+    assert "rework.py" in signals["rework_files"]
+
+
+def test_capture_git_signals_invalid_dir(tmp_path: Path):
+    """Test capture_git_signals on non-git dir."""
+    from soma_core.outcomes.harvest import capture_git_signals
+    signals = capture_git_signals(str(tmp_path))
+    assert signals == {"reverts": 0, "rework_files": []}
+
+
+def test_harvest_git_history_no_cells_dir(tmp_path: Path):
+    """Test harvest_git_history on workspace without cells dir."""
+    from soma_core.outcomes.harvest import harvest_git_history
+    res = harvest_git_history(str(tmp_path))
+    assert res["commits_inspected"] == 0
+    assert res["signals_minted"] == 0
+
+
+def test_harvest_git_history_git_error(tmp_path: Path):
+    """Test harvest_git_history when git fails."""
+    from soma_core.outcomes.harvest import harvest_git_history
+    cells_dir = tmp_path / ".soma" / "cells"
+    cells_dir.mkdir(parents=True)
+    res = harvest_git_history(str(tmp_path))
+    assert res["commits_inspected"] == 0
+    assert "error" in res
+
+
+def test_harvest_git_history_exception(tmp_path: Path, monkeypatch):
+    """Test harvest_git_history when subprocess raises Exception."""
+    from soma_core.outcomes.harvest import harvest_git_history
+    import subprocess
+    cells_dir = tmp_path / ".soma" / "cells"
+    cells_dir.mkdir(parents=True)
+    monkeypatch.setattr(subprocess, "run", lambda *a, **kw: (_ for _ in ()).throw(RuntimeError("subprocess failed")))
+    res = harvest_git_history(str(tmp_path))
+    assert res["commits_inspected"] == 0
+    assert "error" in res
+

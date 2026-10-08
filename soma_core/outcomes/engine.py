@@ -9,8 +9,9 @@ import sys
 from typing import Any, Optional
 
 from soma_core.cell_inventory import find_matching_cells
-from soma_core.somayaml import parse_cell_frontmatter, parse_frontmatter
 from soma_core.workspace import Workspace, as_workspace, resolve_workspace
+
+__all__ = ["match_cells_to_changes", "run_outcome_engine", "main"]
 
 
 def _get_changed_files(workspace: str) -> list[str]:
@@ -38,20 +39,6 @@ def _get_changed_files(workspace: str) -> list[str]:
         return files
     except Exception:
         return []
-
-
-def _parse_frontmatter(content: str, filepath: Optional[str] = None) -> dict:
-    """Parse YAML frontmatter robustly using parse_cell_frontmatter or parse_frontmatter."""
-    if filepath is not None:
-        try:
-            fm, _body = parse_cell_frontmatter(str(filepath))
-            return fm if isinstance(fm, dict) else {}
-        except Exception:
-            return {}
-    if not content:
-        return {}
-    res = parse_frontmatter(content)
-    return res if isinstance(res, dict) else {}
 
 
 def match_cells_to_changes(workspace: Workspace | Path | str, changed_files: list[str]) -> list[dict]:

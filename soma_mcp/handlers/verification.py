@@ -13,6 +13,13 @@ from soma_mcp.registry import (
     resolve_workspace,
 )
 
+__all__ = [
+    "_handle_verify_changes",
+    "_handle_poll_verification",
+    "_handle_checkpoint",
+    "_handle_request_receipt",
+]
+
 
 def _handle_verify_changes(args: dict, gov) -> dict:
     try:

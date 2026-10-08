@@ -16,6 +16,14 @@ from soma_mcp.registry import (
     soma_propose_change,
 )
 
+__all__ = [
+    "_handle_create_cell",
+    "_handle_list_cells",
+    "_handle_propose_change",
+    "_handle_generate_manifest",
+    "_handle_soma_handoff",
+]
+
 
 def _handle_create_cell(args: dict, gov) -> dict:
     try:

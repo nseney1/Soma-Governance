@@ -9,6 +9,8 @@ from typing import Any, Dict, Mapping, Optional
 from soma_core.errors import SomaValidationError
 from soma_core.somayaml import SomaYAML
 
+__all__ = ["SlotResolutionError", "SlotRegistry", "SLOT_REF_PATTERN"]
+
 SLOT_REF_PATTERN = re.compile(r"\$\{(?:SLOT|RULE)\.([A-Za-z0-9_\-]+)\}|\$\{([A-Za-z0-9_\-]+)\}")
 
 

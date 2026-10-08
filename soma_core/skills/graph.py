@@ -9,6 +9,8 @@ from typing import Any, Dict, Iterator, List, Mapping, Optional, Sequence, Set, 
 from soma_core.errors import SomaValidationError
 from soma_core.somayaml import SomaDocument, SomaYAML
 
+__all__ = ["SkillNode", "SkillGraph"]
+
 
 @dataclass(frozen=True, slots=True)
 class SkillNode:

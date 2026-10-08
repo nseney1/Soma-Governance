@@ -24,10 +24,10 @@ tags:
 fitness:
   score: 0.7
   impact_weight: 1.0
-  triggers: 38
-  true_positives: 16.0889
-  false_positives: 14.1592
-  last_trigger_date: "2026-10-08T07:19:48Z"
+  triggers: 42
+  true_positives: 17.0889
+  false_positives: 17.1592
+  last_trigger_date: "2026-10-08T07:49:25Z"
 ---
 
 When generating executable code (Python scripts, shell commands) via string

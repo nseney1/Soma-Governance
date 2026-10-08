@@ -278,3 +278,46 @@ class TestBackwardCompatibilityParity:
         meta, parsed_body = parse_cell_frontmatter(dumped)
         assert meta == data
         assert parsed_body == body
+
+    def test_dump_frontmatter_edge_scalars(self):
+        assert dump_frontmatter({"empty": ""}).strip() == 'empty: ""'
+        assert dump_frontmatter({"spaced": " hello "}).strip() == 'spaced: " hello "'
+        assert dump_frontmatter({"colon": "a: b"}).strip() == 'colon: "a: b"'
+        assert dump_frontmatter({"hyphens": "---"}).strip() == 'hyphens: "---"'
+
+    def test_parse_frontmatter_delimiters_and_edges(self):
+        assert parse_frontmatter("---") is None
+        assert parse_frontmatter("---\nfoo: bar") is None
+        assert parse_frontmatter("---\n---\nbody") == {}
+        assert parse_frontmatter("not frontmatter") == {}
+
+    def test_parse_yaml_subset_unparsed_trailing(self):
+        with pytest.raises(FrontmatterError, match="unparsed content"):
+            parse_yaml_subset("  key1: val1\nkey2: val2")
+
+    def test_string_escapes_and_comments(self):
+        with pytest.raises(SomaYAMLError, match="Escape sequence \\\\0"):
+            parse_yaml_subset('key: "\\0"')
+
+        # line continuation
+        res_cr = parse_yaml_subset('key: "line1\\\r\n  line2"')
+        assert res_cr["key"] == "line1line2"
+        res_lf = parse_yaml_subset('key: "line1\\\n  line2"')
+        assert res_lf["key"] == "line1line2"
+
+        # unicode escapes
+        res_u = parse_yaml_subset('key: "\\u0041"')
+        assert res_u["key"] == "A"
+        res_big_u = parse_yaml_subset('key: "\\U00000041"')
+        assert res_big_u["key"] == "A"
+
+        # comments inside quotes
+        res_comment = parse_yaml_subset('key: "val # not comment" # real comment')
+        assert res_comment["key"] == "val # not comment"
+
+        # unterminated quotes
+        with pytest.raises(FrontmatterError, match="unterminated"):
+            parse_yaml_subset('key: "unclosed')
+        with pytest.raises(FrontmatterError, match="unterminated"):
+            parse_yaml_subset("key: 'unclosed")
+

@@ -4,26 +4,26 @@ domain: security
 type: wall
 enforcement: gate
 hypothesis: The safety gate script is a critical security boundary.
-prediction: Enforcing strict boundaries on this file prevents unauthorized circumvention
-  of safety checks.
+prediction: Enforcing strict boundaries on this file prevents unauthorized circumvention of safety checks.
 falsification: The script is entirely benign and requires no protection.
 target_paths:
-- soma_cli/hooks/**
+  - "soma_cli/hooks/**"
 expiry_sessions: 100
 impact_weight: 1.0
 minimum_mode: maelstrom
 tags:
-- safety
-- security
-- gate
-created: '2026-09-28'
+  - safety
+  - security
+  - gate
+created: 2026-09-28
 fitness:
-  triggers: 2
+  triggers: 3
   true_positives: 2
-  false_positives: 0
+  false_positives: 0.25
   score: 1.0
-  last_trigger_date: '2026-10-01T04:26:19Z'
+  last_trigger_date: "2026-10-08T07:35:17Z"
 ---
+
 # Wall: Safety Gate
 
 Target: `enzymes/safety_gate.sh`

@@ -7,6 +7,12 @@ from typing import Any, Dict
 from soma_mcp.jit_engine import express as jit_express
 from soma_mcp.registry import _STATUS_FAIL, _STATUS_PASS, _get_workspace
 
+__all__ = [
+    "_handle_audit_security",
+    "_handle_audit_performance",
+    "_handle_scan",
+]
+
 
 def _handle_audit_security(args: dict, gov) -> dict:
     content = args.get("proposed_content") or ""

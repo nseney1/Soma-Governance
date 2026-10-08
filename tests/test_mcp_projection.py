@@ -116,3 +116,47 @@ class TestResponseProjection:
         )
         assert res == {"status": "PASS"}
 
+    def test_projection_empty_and_all_denied_fields(self):
+        res = project_response({"a": 1}, fields=["", "  "])
+        assert res == {}
+        res2 = project_response({"a": 1}, fields=["task_plan", "prompt"])
+        assert res2 == {}
+        # Payload with empty string key - empty string in fields must NOT project the empty key
+        res3 = project_response({"": "secret_empty", "valid": 123}, fields=["", "valid"])
+        assert res3 == {"valid": 123}
+        assert "" not in res3
+        # Missing dict key covers line 59
+        res4 = project_response({"a": 1}, fields=["missing_key", "a.missing_sub"])
+        assert res4 == {}
+
+    def test_ids_view_items_with_only_id_or_only_name(self):
+        res_id = project_response([{"id": "cell-id-only"}], view="ids")
+        assert res_id == ["cell-id-only"]
+        res_name = project_response([{"name": "cell-name-only"}], view="ids")
+        assert res_name == ["cell-name-only"]
+        res_neither = project_response([{"foo": "bar"}], view="ids")
+        assert res_neither == ["{'foo': 'bar'}"]
+
+    def test_nested_lookup_lists_and_primitives(self):
+        payload = {"items": [{"name": "first"}, {"name": "second"}]}
+        res = project_response(payload, fields=["items.0.name", "items.5.name", "items.bad.name", "items.0.name.extra"])
+        assert res == {"items": {"0": {"name": "first"}}}
+
+    def test_projection_primitives_and_lists(self):
+        assert project_response("hello", view="ids") == "hello"
+        assert project_response(123, fields=["a"]) == 123
+        assert project_response("unknown", view="nonexistent_view") == "unknown"
+
+        # list with non-dict items in summary
+        assert project_response(["string_item", {"id": "c1", "status": "ok"}], view="summary") == ["string_item", {"id": "c1", "status": "ok"}]
+
+        # list with non-dict items in custom fields
+        assert project_response(["string_item", {"id": "c1"}], fields=["id"]) == ["string_item", {"id": "c1"}]
+
+        # mapping with single 'id' in ids view
+        assert project_response({"id": "only-id"}, view="ids") == {"id": "only-id"}
+
+        # mapping without id or containers in ids view
+        assert project_response({"other": 1, "value": 2}, view="ids") == {"keys": ["other", "value"]}
+
+

@@ -16,6 +16,8 @@ from soma_core.schemas.artifacts import ArtifactEnvelope, ArtifactRegistry
 from soma_core.skills.graph import SkillGraph, SkillNode
 from soma_core.workspace import Workspace, as_workspace
 
+__all__ = ["HandoffTicket", "HandoffRouter", "soma_handoff"]
+
 
 @dataclass(frozen=True, slots=True)
 class HandoffTicket:

@@ -8,7 +8,7 @@ prediction: "Enforcing deterministic interception of 'gh pr merge' and direct gi
 falsification: Agents reliably stop at prose human review gates without programmatic enforcement.
 target_paths:
   - soma_core/command_safety.py
-  - soma_cli/hooks/**
+  - "soma_cli/hooks/**"
   - docs/project/RELEASE_WORKFLOW.md
   - genome/gitflow-review-gate.md
 expiry_sessions: 100
@@ -21,11 +21,11 @@ tags:
   - human-in-the-loop
 created: 2026-10-07
 fitness:
-  triggers: 25
+  triggers: 26
   true_positives: 3.3336
-  false_positives: 3.4448
+  false_positives: 3.9448
   score: 1.0
-  last_trigger_date: "2026-10-08T06:04:18Z"
+  last_trigger_date: "2026-10-08T07:35:17Z"
 ---
 
 # Wall: Human Review Gate Enforcement

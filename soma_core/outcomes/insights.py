@@ -13,6 +13,8 @@ from typing import Optional
 from soma_core.somayaml import parse_frontmatter, parse_yaml_subset
 from soma_core.workspace import Workspace, as_workspace
 
+__all__ = ["commit_insight_cursor", "capture_human_insight_signals", "read_human_insight_signals"]
+
 
 def _insight_cursor_path(workspace: Workspace | Path | str) -> str:
     ws = as_workspace(workspace)

@@ -846,11 +846,12 @@ def parse_frontmatter(content: str) -> Optional[Dict[str, Any]]:
     if nl == -1:
         return None
 
-    m = _CLOSING_DELIM_RE.search(content, nl + 1)
+    rest = content[nl + 1 :]
+    m = _CLOSING_DELIM_RE.search(rest)
     if not m:
         return None
 
-    fm_text = content[nl + 1 : m.start()].strip()
+    fm_text = rest[: m.start()].strip()
     if not fm_text:
         return {}
 

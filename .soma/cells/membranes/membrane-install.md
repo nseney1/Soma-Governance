@@ -17,11 +17,11 @@ tags:
   - review-escalation
 created: 2026-09-28
 fitness:
-  triggers: 5
+  triggers: 6
   true_positives: 2.2
-  false_positives: 0.4
+  false_positives: 0.6
   score: 1.0
-  last_trigger_date: "2026-10-08T07:19:48Z"
+  last_trigger_date: "2026-10-08T07:35:17Z"
 ---
 
 # Membrane: Install Escalation

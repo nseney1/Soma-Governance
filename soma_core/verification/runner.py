@@ -28,6 +28,32 @@ def _find_test_file(filepath: str, repo_root: str) -> Optional[str]:
       5. tests/test_<clean_parent>/test_<stem>.py
       6. Domain mappings (e.g. runner.py -> test_verification/test_layer1.py)
     """
+    norm = filepath.replace("\\", "/")
+    if "soma_mcp/handlers" in norm:
+        cand = os.path.join(repo_root, "tests", "test_mcp_handlers.py")
+        if os.path.isfile(cand):
+            return cand
+    if "soma_core/outcomes/harvest.py" in norm:
+        cand = os.path.join(repo_root, "tests", "test_git_retro_harvest.py")
+        if os.path.isfile(cand):
+            return cand
+    if "soma_core/outcomes/insights.py" in norm:
+        cand = os.path.join(repo_root, "tests", "test_outcomes_insights.py")
+        if os.path.isfile(cand):
+            return cand
+    if "soma_core/outcomes/telemetry.py" in norm:
+        cand = os.path.join(repo_root, "tests", "test_outcomes_telemetry.py")
+        if os.path.isfile(cand):
+            return cand
+    if "soma_core/outcomes/engine.py" in norm:
+        cand = os.path.join(repo_root, "tests", "test_outcome_engine.py")
+        if os.path.isfile(cand):
+            return cand
+    if "soma_core/skills" in norm or "soma_core/schemas/artifacts.py" in norm:
+        cand = os.path.join(repo_root, "tests", "test_skills_and_handoff.py")
+        if os.path.isfile(cand):
+            return cand
+
     stem = os.path.splitext(os.path.basename(filepath))[0]
     test_name = f"test_{stem}.py"
     parent = os.path.basename(os.path.dirname(filepath))

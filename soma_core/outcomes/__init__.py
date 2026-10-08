@@ -3,7 +3,6 @@ from __future__ import annotations
 
 from soma_core.outcomes.engine import (
     _get_changed_files,
-    _parse_frontmatter,
     main,
     match_cells_to_changes,
     run_outcome_engine,

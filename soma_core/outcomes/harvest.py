@@ -9,6 +9,9 @@ import subprocess
 from typing import Optional
 
 from soma_core.workspace import Workspace
+from soma_core.outcomes.fitness import update_cell_fitness
+
+__all__ = ["capture_git_signals", "harvest_git_history"]
 
 
 def capture_git_signals(workspace: str) -> dict:

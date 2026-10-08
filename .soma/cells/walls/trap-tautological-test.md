@@ -26,10 +26,10 @@ tags:
 fitness:
   score: 0.7143
   impact_weight: 1.0
-  triggers: 31
-  true_positives: 10.6156
-  false_positives: 9.8461
-  last_trigger_date: "2026-10-08T07:19:48Z"
+  triggers: 35
+  true_positives: 10.9233
+  false_positives: 11.3846
+  last_trigger_date: "2026-10-08T07:49:25Z"
 ---
 
 Tests must exercise the function-under-test with inputs that DISTINGUISH
