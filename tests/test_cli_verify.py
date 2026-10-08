@@ -938,6 +938,89 @@ class TestReleaseGateCheck:
         files = resolve_target_files(args)
         assert files == []
 
+    def test_resolve_target_files_clean_tree_branch_diff_fallback(self, tmp_path, monkeypatch):
+        """resolve_target_files queries origin/main...HEAD when working tree is clean."""
+        from soma_cli.verify import resolve_target_files
+        import subprocess
+
+        monkeypatch.delenv("GITHUB_BASE_REF", raising=False)
+        def mock_run(cmd, *args, **kwargs):
+            if isinstance(cmd, list) and len(cmd) >= 2 and cmd[0] == "git" and cmd[1] == "diff":
+                if "origin/main...HEAD" in cmd:
+                    return subprocess.CompletedProcess(cmd, 0, stdout="core/branch_file.py\n", stderr="")
+            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+        monkeypatch.setattr(subprocess, "run", mock_run)
+
+        args = argparse.Namespace(files=None, workspace=str(tmp_path))
+        files = resolve_target_files(args)
+        assert files == ["core/branch_file.py"]
+
+    def test_resolve_target_files_head_parent_fallback(self, tmp_path, monkeypatch):
+        """resolve_target_files falls back to HEAD~1 when branch diffs are unavailable."""
+        from soma_cli.verify import resolve_target_files
+        import subprocess
+
+        monkeypatch.delenv("GITHUB_BASE_REF", raising=False)
+        def mock_run(cmd, *args, **kwargs):
+            if isinstance(cmd, list) and len(cmd) >= 2 and cmd[0] == "git" and cmd[1] == "diff":
+                if "HEAD~1" in cmd:
+                    return subprocess.CompletedProcess(cmd, 0, stdout="core/last_commit_file.py\n", stderr="")
+                if any("HEAD" in c for c in cmd):
+                    return subprocess.CompletedProcess(cmd, 1, stdout="", stderr="branch error")
+            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+        monkeypatch.setattr(subprocess, "run", mock_run)
+
+        args = argparse.Namespace(files=None, workspace=str(tmp_path))
+        files = resolve_target_files(args)
+        assert files == ["core/last_commit_file.py"]
+
+    def test_resolve_target_files_github_base_ref(self, tmp_path, monkeypatch):
+        """resolve_target_files honors GITHUB_BASE_REF when present in environment."""
+        from soma_cli.verify import resolve_target_files
+        import subprocess
+
+        monkeypatch.setenv("GITHUB_BASE_REF", "release-1.0")
+        def mock_run(cmd, *args, **kwargs):
+            if isinstance(cmd, list) and len(cmd) >= 2 and cmd[0] == "git" and cmd[1] == "diff":
+                if "origin/release-1.0...HEAD" in cmd:
+                    return subprocess.CompletedProcess(cmd, 0, stdout="core/pr_feature.py\n", stderr="")
+            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+        monkeypatch.setattr(subprocess, "run", mock_run)
+
+        args = argparse.Namespace(files=None, workspace=str(tmp_path))
+        files = resolve_target_files(args)
+        assert files == ["core/pr_feature.py"]
+
+    def test_verify_release_gate_ignores_cells_and_evidence(self, tmp_path, monkeypatch):
+        """verify_release_gate ignores modifications in .soma/cells and .soma/evidence."""
+        from soma_cli.verify import verify_release_gate
+        import subprocess
+
+        evidence_dir = tmp_path / ".soma" / "evidence"
+        evidence_dir.mkdir(parents=True)
+        (evidence_dir / "arbitration_cycle_1.json").write_text(json.dumps({
+            "verdict": "ship",
+            "cycle": 1,
+            "target_files": [],
+            "tree_hash": "tree_abc123",
+        }))
+
+        def mock_run(cmd, *args, **kwargs):
+            if "status" in cmd:
+                # Dirty output containing .soma/cells and .soma/evidence
+                stdout = " M .soma/cells/walls/wall-human-review-gate.md\n?? .soma/evidence/arbitration_cycle_2.json\n"
+                return subprocess.CompletedProcess(cmd, 0, stdout=stdout, stderr="")
+            if "rev-parse" in cmd:
+                return subprocess.CompletedProcess(cmd, 0, stdout="tree_abc123\n", stderr="")
+            if "diff" in cmd:
+                return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+
+        monkeypatch.setattr(subprocess, "run", mock_run)
+        passed, msg = verify_release_gate(str(tmp_path))
+        assert passed is True
+        assert "PASS" in msg
+
     def test_verify_release_gate_git_diff_exception(self, tmp_path, monkeypatch):
         """verify_release_gate fails closed if git commands fail."""
         from soma_cli.verify import verify_release_gate

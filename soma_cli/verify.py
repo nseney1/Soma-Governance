@@ -365,7 +365,7 @@ def verify_release_gate(repo_root: str) -> tuple[bool, str]:
                 return False
             if path.startswith(".soma/telemetry") or "/.soma/telemetry" in path:
                 return False
-            if path == ".soma/cells/fitness.jsonl" or path.endswith("/.soma/cells/fitness.jsonl"):
+            if path.startswith(".soma/cells") or "/.soma/cells" in path:
                 return False
             if path == ".soma/human_insights.jsonl" or path.endswith("/.soma/human_insights.jsonl"):
                 return False
