@@ -399,10 +399,29 @@ def verify_release_gate(repo_root: str) -> tuple[bool, str]:
             return False, f"Release Gate 4.5 FAIL: git rev-parse HEAD^{{tree}} failed: {tree_res.stderr.strip()}"
         current_tree = tree_res.stdout.strip()
         if current_tree != recorded_tree:
-            return False, (
-                f"Release Gate 4.5 FAIL: Tree hash mismatch. Current tree '{current_tree}' does not match "
-                f"arbitration receipt tree '{recorded_tree}'. Code was modified after verification."
+            # Check if differences are strictly within .soma/evidence or .soma/cells (e.g. committing the receipt)
+            diff_res = subprocess.run(
+                ["git", "diff-tree", "--name-only", "-r", recorded_tree, current_tree],
+                capture_output=True, text=True, cwd=repo_root, timeout=5,
             )
+            if diff_res.returncode == 0:
+                diff_files = [f.strip() for f in diff_res.stdout.splitlines() if f.strip()]
+                non_evidence = [
+                    f for f in diff_files
+                    if not (f.startswith(".soma/evidence") or "/.soma/evidence" in f
+                            or f.startswith(".soma/cells") or "/.soma/cells" in f)
+                ]
+                if non_evidence:
+                    return False, (
+                        f"Release Gate 4.5 FAIL: Tree hash mismatch. Current tree '{current_tree}' does not match "
+                        f"arbitration receipt tree '{recorded_tree}'. Code was modified after verification: "
+                        f"{', '.join(non_evidence[:5])}"
+                    )
+            else:
+                return False, (
+                    f"Release Gate 4.5 FAIL: Tree hash mismatch. Current tree '{current_tree}' does not match "
+                    f"arbitration receipt tree '{recorded_tree}'. Code was modified after verification."
+                )
     except Exception as e:
         return False, f"Release Gate 4.5 FAIL: git tree hash resolution failed: {e}"
 

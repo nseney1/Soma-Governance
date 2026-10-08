@@ -1179,12 +1179,46 @@ class TestReleaseGateCheck:
                     return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
                 if cmd[1] == "rev-parse":
                     return subprocess.CompletedProcess(cmd, 0, stdout="tree_current_222\n", stderr="")
+                if cmd[1] == "diff-tree":
+                    return subprocess.CompletedProcess(cmd, 0, stdout="soma_core/runner.py\n", stderr="")
             return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
         monkeypatch.setattr(subprocess, "run", mock_git)
 
         passed, msg = verify_release_gate(str(tmp_path))
         assert passed is False
         assert "Tree hash mismatch" in msg
+        assert "soma_core/runner.py" in msg
+
+    def test_verify_release_gate_passes_when_tree_diff_is_evidence_only(self, tmp_path, monkeypatch):
+        """verify_release_gate passes when tree diff between receipt and HEAD is strictly evidence."""
+        from soma_cli.verify import verify_release_gate
+        import subprocess
+
+        def mock_evidence(root):
+            return 1, {
+                "verdict": "ship",
+                "target_files": ["soma_core/runner.py"],
+                "tree_hash": "tree_receipt_111",
+            }
+        monkeypatch.setattr("soma_core.verification.review_adapter.get_latest_arbitration_evidence", mock_evidence)
+
+        def mock_git(cmd, *args, **kwargs):
+            if isinstance(cmd, list):
+                if cmd[1] == "status":
+                    return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+                if cmd[1] == "rev-parse":
+                    return subprocess.CompletedProcess(cmd, 0, stdout="tree_current_222\n", stderr="")
+                if cmd[1] == "diff-tree":
+                    # Only .soma/evidence file committed
+                    return subprocess.CompletedProcess(cmd, 0, stdout=".soma/evidence/arbitration_cycle_1.json\n", stderr="")
+                if cmd[1] == "diff":
+                    return subprocess.CompletedProcess(cmd, 0, stdout="soma_core/runner.py\n", stderr="")
+            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+        monkeypatch.setattr(subprocess, "run", mock_git)
+
+        passed, msg = verify_release_gate(str(tmp_path))
+        assert passed is True
+        assert "PASS" in msg
 
     def test_verify_release_gate_fails_when_working_tree_dirty(self, tmp_path, monkeypatch):
         """verify_release_gate fails closed if uncommitted/unstaged changes exist."""
