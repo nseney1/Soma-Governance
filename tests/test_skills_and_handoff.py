@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from pathlib import Path
+import subprocess
 import pytest
 
 from soma_core.errors import HandoffAuthorizationError, InvalidHandoffPayloadError, SomaValidationError
@@ -218,3 +220,311 @@ class TestSkillGraphAndHandoffRouter:
         assert rc == 0
         out = capsys.readouterr().out
         assert "SOMA_HANDOFF_TICKET" in out
+
+
+class TestArtifactsAndSkillsBranchHardening:
+    """Comprehensive branch and mutation hardening for artifacts, skills, handoff, and slots."""
+
+    def test_chargesheet_and_receipt_validation_branches(self):
+        # ChargeSheet empty risk / mechanism
+        with pytest.raises(InvalidHandoffPayloadError, match="risk"):
+            ChargeSheet(category="cat", risk="", mechanism="mech")
+        with pytest.raises(InvalidHandoffPayloadError, match="mechanism"):
+            ChargeSheet(category="cat", risk="risk", mechanism="")
+
+        # Non-mapping
+        with pytest.raises(InvalidHandoffPayloadError, match="mapping"):
+            ChargeSheet.from_dict("not-a-dict")  # type: ignore
+        with pytest.raises(InvalidHandoffPayloadError, match="Missing required field"):
+            ChargeSheet.from_dict({"category": "c"})
+
+        cs = ChargeSheet.from_dict({
+            "category": "cat",
+            "risk": "r",
+            "mechanism": "m",
+            "affected_function": "fn",
+            "line_number": 42,
+            "severity": "high",
+        })
+        d = cs.to_dict()
+        assert d == {
+            "category": "cat",
+            "risk": "r",
+            "mechanism": "m",
+            "affected_function": "fn",
+            "line_number": 42,
+            "severity": "high",
+        }
+
+        # InspectionReceipt validation
+        with pytest.raises(InvalidHandoffPayloadError, match="mapping"):
+            InspectionReceipt.from_dict([1, 2, 3])  # type: ignore
+        with pytest.raises(InvalidHandoffPayloadError, match="inspector"):
+            InspectionReceipt.from_dict({})
+
+        ir = InspectionReceipt.from_dict({
+            "inspector": "linter",
+            "checked_files": ["a.py"],
+            "violations_found": 1,
+            "passed": False,
+            "details": ["err"],
+        })
+        ir_dict = ir.to_dict()
+        assert ir_dict["inspector"] == "linter"
+        assert ir_dict["checked_files"] == ["a.py"]
+        assert ir_dict["violations_found"] == 1
+        assert ir_dict["passed"] is False
+        assert ir_dict["details"] == ["err"]
+
+        # DiffProposal validation
+        with pytest.raises(InvalidHandoffPayloadError, match="mapping"):
+            DiffProposal.from_dict("invalid")  # type: ignore
+        with pytest.raises(InvalidHandoffPayloadError, match="summary"):
+            DiffProposal.from_dict({})
+
+        dp = DiffProposal.from_dict({"summary": "sum", "proposed_files": ["b.py"], "risk_tier": "low"})
+        dp_dict = dp.to_dict()
+        assert dp_dict == {"summary": "sum", "proposed_files": ["b.py"], "risk_tier": "low"}
+
+        # TestVerdict validation
+        with pytest.raises(InvalidHandoffPayloadError, match="mapping"):
+            TestVerdict.from_dict("bad")  # type: ignore
+        with pytest.raises(InvalidHandoffPayloadError, match="test_suite"):
+            TestVerdict.from_dict({})
+
+        tv = TestVerdict.from_dict({
+            "test_suite": "pytest",
+            "passed": 10,
+            "failed": 0,
+            "skipped": 1,
+            "execution_time_seconds": 1.5,
+        })
+        tv_dict = tv.to_dict()
+        assert tv_dict["test_suite"] == "pytest"
+        assert tv_dict["passed"] == 10
+        assert tv_dict["failed"] == 0
+        assert tv_dict["skipped"] == 1
+        assert tv_dict["duration_ms"] == 0.0
+
+    def test_artifact_registry_and_envelope(self):
+        # Register custom schema
+        class CustomArtifact:
+            @classmethod
+            def from_dict(cls, d):
+                return cls()
+            def to_dict(self):
+                return {"custom": True}
+
+        ArtifactRegistry.register("Custom", CustomArtifact)
+        assert ArtifactRegistry.validate("Custom", {}) == {"custom": True}
+
+        # Unregistered
+        assert ArtifactRegistry.validate("Unknown", {"x": 1}) == {"x": 1}
+        with pytest.raises(InvalidHandoffPayloadError):
+            ArtifactRegistry.validate("Unknown", "non-dict")
+
+        # ArtifactEnvelope
+        env = ArtifactEnvelope(
+            artifact_type="ChargeSheet",
+            producer_skill="sec",
+            producer_tier="orchestrator",
+            tree_hash="abc",
+            session_hmac="hmac",
+            payload={"category": "sec", "risk": "r", "mechanism": "m"},
+            timestamp="2026-01-01",
+        )
+        env_dict = env.to_dict()
+        assert env_dict["producer_skill"] == "sec"
+        assert env_dict["producer_tier"] == "orchestrator"
+        assert env_dict["tree_hash"] == "abc"
+        assert env_dict["session_hmac"] == "hmac"
+        assert env_dict["timestamp"] == "2026-01-01"
+
+        from_env = ArtifactEnvelope.from_dict(env_dict)
+        assert from_env.producer_skill == "sec"
+        assert from_env.verify_integrity("wrong_secret") is False
+        assert from_env.verify_integrity("wrong_secret", expected_tree_hash="mismatch") is False
+
+    def test_skill_node_and_graph(self, tmp_path: Path):
+        node = SkillNode(
+            id="builder",
+            tier="lane",
+            consumes=("DiffProposal",),
+            produces=("TestVerdict",),
+            handoff_targets=("tester",),
+            instructions_file=None,
+            decay=True,
+            description="Builds code",
+            slot_constraints={"test_cmd": "pytest"},
+        )
+        assert node.load_instructions() == ""
+
+        # Nonexistent instructions file
+        node_bad_file = SkillNode(id="b", instructions_file=str(tmp_path / "missing.md"))
+        assert node_bad_file.load_instructions() == ""
+
+        # Existing instructions file
+        instr_file = tmp_path / "instr.md"
+        instr_file.write_text("---\nid: b\n---\n# Instructions Body", encoding="utf-8")
+        node_good = SkillNode(id="b", instructions_file=str(instr_file))
+        assert node_good.load_instructions() == "# Instructions Body"
+
+        nd = node.to_dict()
+        assert nd["id"] == "builder"
+        assert nd["tier"] == "lane"
+        assert nd["consumes"] == ["DiffProposal"]
+        assert nd["produces"] == ["TestVerdict"]
+        assert nd["handoff_targets"] == ["tester"]
+        assert nd["decay"] is True
+        assert nd["description"] == "Builds code"
+        assert nd["slot_constraints"] == {"test_cmd": "pytest"}
+
+        # Graph operations
+        graph = SkillGraph({"builder": node})
+        assert len(graph) == 1
+        assert "builder" in list(iter(graph))
+        assert graph["builder"].id == "builder"
+        assert graph.get("builder").id == "builder"
+        assert graph.get("nonexistent") is None
+        assert graph.get_downstream("nonexistent") == []
+        assert graph.get_downstream("builder") == []  # "tester" not in graph
+
+        tester_node = SkillNode(id="tester", consumes=("TestVerdict",))
+        graph2 = SkillGraph({"builder": node, "tester": tester_node})
+        assert len(graph2.get_downstream("builder")) == 1
+        assert graph2.get_downstream("builder")[0].id == "tester"
+
+        # validate_handoff_path errors
+        with pytest.raises(SomaValidationError, match="does not produce"):
+            graph2.validate_handoff_path("builder", "tester", "WrongArtifact")
+
+        with pytest.raises(SomaValidationError, match="cannot handoff to"):
+            graph2.validate_handoff_path("builder", "other", "TestVerdict")
+
+        with pytest.raises(SomaValidationError, match="does not consume"):
+            other_tester = SkillNode(id="other_tester", consumes=("ChargeSheet",))
+            graph3 = SkillGraph({"builder": SkillNode(id="builder", produces=("TestVerdict",), handoff_targets=("other_tester",)), "other_tester": other_tester})
+            graph3.validate_handoff_path("builder", "other_tester", "TestVerdict")
+
+        # SkillGraph.discover with file, dir, and malformed file
+        dir_skills = tmp_path / "skills_discovery"
+        dir_skills.mkdir()
+        (dir_skills / "README.md").write_text("# Readme", encoding="utf-8")
+        (dir_skills / "valid.md").write_text("---\nid: disc1\ntier: organ\n---\nBody", encoding="utf-8")
+        (dir_skills / "malformed.md").write_text("invalid : : yaml [", encoding="utf-8")
+        single_file = tmp_path / "single_skill.md"
+        single_file.write_text("---\nid: disc2\ntier: organ\n---\nBody", encoding="utf-8")
+
+        disc_graph = SkillGraph.discover([str(dir_skills), str(single_file), str(tmp_path / "nonexistent_dir")])
+        assert "disc1" in disc_graph
+        assert "disc2" in disc_graph
+
+    def test_handoff_ticket_and_router(self, tmp_path: Path, monkeypatch):
+        ticket = HandoffTicket(
+            ticket_id="ticket-123",
+            artifact_type="ChargeSheet",
+            producer_skill="auditor",
+            target_skill="fixer",
+            file_path="/path/ticket.json",
+            tree_hash="tree-abc",
+            session_hmac="hmac-123456789012345",
+            summary="A" * 200,
+            created_at="2026-01-01T00:00:00Z",
+        )
+        td = ticket.to_dict()
+        assert td == {
+            "ticket_id": "ticket-123",
+            "artifact_type": "ChargeSheet",
+            "producer_skill": "auditor",
+            "target_skill": "fixer",
+            "file_path": "/path/ticket.json",
+            "tree_hash": "tree-abc",
+            "session_hmac": "hmac-123456789012345",
+            "summary": "A" * 200,
+            "created_at": "2026-01-01T00:00:00Z",
+        }
+
+        block = ticket.format_prompt_block()
+        assert "ticket-123" in block
+        assert "ChargeSheet" in block
+        assert "auditor" in block
+        assert "fixer" in block
+        assert "tree-abc" in block
+        assert "hmac-1234567" in block
+        assert "A" * 100 in block
+
+        # _get_tree_hash returncode == 0
+        from soma_core.skills.handoff import _get_tree_hash
+        monkeypatch.setattr(subprocess, "run", lambda *a, **kw: subprocess.CompletedProcess([], 0, stdout="treehash12345\n"))
+        assert _get_tree_hash(tmp_path) == "treehash12345"
+
+        # _get_tree_hash fallback on failure
+        monkeypatch.setattr(subprocess, "run", lambda *a, **kw: subprocess.CompletedProcess([], 1))
+        assert _get_tree_hash(tmp_path) == "0000000000000000000000000000000000000000"
+        monkeypatch.setattr(subprocess, "run", lambda *a, **kw: (_ for _ in ()).throw(RuntimeError("boom")))
+        assert _get_tree_hash(tmp_path) == "0000000000000000000000000000000000000000"
+
+        # ArtifactRegistry dataclass without from_dict branch and failure
+        @dataclass
+        class CustomRawItem:
+            val: str
+        ArtifactRegistry.register("CustomRawItem", CustomRawItem)
+        assert ArtifactRegistry.validate("CustomRawItem", CustomRawItem(val="ok")) == {"val": "ok"}
+        with pytest.raises(InvalidHandoffPayloadError, match="Cannot validate payload"):
+            ArtifactRegistry.validate("CustomRawItem", "invalid_type")
+
+        # HandoffRouter payload string parsing (json and plain string) and summary truncation
+        skills_dir = tmp_path / ".soma" / "skills"
+        skills_dir.mkdir(parents=True, exist_ok=True)
+        (skills_dir / "a.md").write_text("---\nid: a\ntier: sentinel\nproduces: [ChargeSheet]\nhandoff_targets: [b]\n---\n", encoding="utf-8")
+        (skills_dir / "b.md").write_text("---\nid: b\nconsumes: [ChargeSheet, DiffProposal]\n---\n", encoding="utf-8")
+        (skills_dir / "c.md").write_text("---\nid: c\ntier: method\nproduces: [DiffProposal]\nhandoff_targets: [b]\n---\n", encoding="utf-8")
+        (skills_dir / "corrupted.md").write_text("---\nid: [unclosed\n---\n", encoding="utf-8")
+
+        # discover handles corrupted doc gracefully
+        g = SkillGraph.discover([skills_dir])
+        assert "a" in g._nodes
+        assert "c" in g._nodes
+
+        res_ticket = HandoffRouter.execute_handoff(
+            workspace=str(tmp_path),
+            from_skill="a",
+            to_skill="b",
+            artifact_type="ChargeSheet",
+            payload='{"category": "cat", "risk": "long risk ' + ('x' * 200) + '", "mechanism": "mech"}',
+        )
+        assert res_ticket.summary.endswith("...")
+        assert len(res_ticket.summary) == 160
+
+        # Non-json string payload fallback to {"summary": payload}
+        res_ticket2 = HandoffRouter.execute_handoff(
+            workspace=str(tmp_path),
+            from_skill="c",
+            to_skill="b",
+            artifact_type="DiffProposal",
+            payload="plain text non-json summary",
+        )
+        assert res_ticket2.artifact_type == "DiffProposal"
+
+    def test_slot_registry_branches(self, tmp_path: Path):
+        # Nonexistent file returns empty
+        reg = SlotRegistry.load(tmp_path)
+        assert reg.to_dict() == {}
+
+        # Invalid yaml syntax raises SlotResolutionError
+        soma_dir = tmp_path / ".soma"
+        soma_dir.mkdir(parents=True, exist_ok=True)
+        (soma_dir / "slots.yaml").write_text("a: [unclosed", encoding="utf-8")
+        with pytest.raises(SlotResolutionError, match="Failed to parse"):
+            SlotRegistry.load(tmp_path)
+
+        # slots not a mapping
+        (soma_dir / "slots.yaml").write_text("---\nslots: 'not-a-map'\n---\n", encoding="utf-8")
+        assert SlotRegistry.load(tmp_path).to_dict() == {}
+
+        # resolve with strict=False returns token
+        reg2 = SlotRegistry({"existing": "val"})
+        assert reg2.resolve("Hello ${existing} and ${missing}", strict=False) == "Hello val and ${missing}"
+        assert reg2.to_dict() == {"existing": "val"}
+
+

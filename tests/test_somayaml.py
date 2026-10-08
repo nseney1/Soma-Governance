@@ -321,3 +321,352 @@ class TestBackwardCompatibilityParity:
         with pytest.raises(FrontmatterError, match="unterminated"):
             parse_yaml_subset("key: 'unclosed")
 
+
+from tests.test_frontmatter_engine import TestFrontmatterParser, TestFrontmatterDumper
+from soma_core.somayaml import write_frontmatter
+import datetime
+
+
+class TestSomaYAMLBranchHardening:
+    """Systematic branch coverage hardening for soma_core.somayaml."""
+
+    def test_soma_document_comprehensive_properties(self, tmp_path: Path):
+        doc = SomaDocument(metadata={"kind": "skill", "id": "s1", "type": "wall"}, body="body text", source_path="/tmp/doc.md")
+        assert doc.kind == "skill"
+        assert doc.id == "s1"
+        assert doc.name == "s1"
+        assert doc.type == "wall"
+        assert doc.tier == "method"
+        assert doc.body == "body text"
+        assert doc.source_path == "/tmp/doc.md"
+        assert doc.to_dict() == {"kind": "skill", "id": "s1", "type": "wall", "tier": "method", "consumes": [], "produces": [], "handoff_targets": []}
+        assert list(iter(doc)) == ["kind", "id", "type", "tier", "consumes", "produces", "handoff_targets"]
+        assert "SomaDocument" in repr(doc)
+        assert doc["id"] == "s1"
+        assert doc.get("nonexistent", "fallback") == "fallback"
+        assert "id" in doc.keys()
+        assert "s1" in list(doc.values())
+        assert len(doc.items()) >= 3
+        assert doc.enforcement is None
+        assert doc.target_paths == []
+        assert doc.consumes == []
+        assert doc.produces == []
+        assert doc.handoff_targets == []
+        assert doc.decay is False
+
+        # rule kind auto inference
+        doc_rule = SomaDocument(metadata={"id": "r1", "type": "wall", "enforcement": "strict", "target_paths": ["a.py"]})
+        assert doc_rule.kind == "rule"
+        assert doc_rule.enforcement == "strict"
+        assert doc_rule.target_paths == ["a.py"]
+        assert doc_rule.decay is True
+
+        # explicit kind
+        doc_explicit = SomaDocument(metadata={"id": "e1"}, kind="custom_kind")
+        assert doc_explicit.kind == "custom_kind"
+
+    def test_somayaml_parse_text_and_dump(self):
+        # parse_text with frontmatter and body
+        doc = SomaYAML.parse_text("---\nid: cell-abc\nkind: skill\n---\n# Markdown Body\nHello world")
+        assert doc.id == "cell-abc"
+        assert doc.body == "# Markdown Body\nHello world"
+
+        # parse_text with only yaml mapping
+        doc_raw = SomaYAML.parse_text("id: cell-raw\nscore: 1.0\n")
+        assert doc_raw.id == "cell-raw"
+        assert doc_raw.body == ""
+
+        # parse_text error branches
+        with pytest.raises(FrontmatterError, match="Expected YAML mapping at document root"):
+            SomaYAML.parse_text("---\n- item 1\n- item 2\n---\n")
+
+        with pytest.raises(FrontmatterError, match="Expected YAML mapping at document root"):
+            SomaYAML.parse_text("- item 1\n- item 2\n")
+
+        # dump SomaDocument
+        dumped1 = SomaYAML.dump(doc)
+        assert "id: cell-abc" in dumped1
+        assert "Hello world" in dumped1
+
+        # dump dict with body
+        dumped2 = SomaYAML.dump({"id": "d1"}, body="Body from dict")
+        assert "id: d1" in dumped2
+        assert "Body from dict" in dumped2
+
+    def test_somayaml_parse_file_and_write_frontmatter(self, tmp_path: Path):
+        # workspace without confine_path raises SomaYAMLError
+        class BadWS:
+            pass
+        with pytest.raises(SomaYAMLError, match="confine_path"):
+            SomaYAML.parse_file("foo.md", BadWS())
+
+        # real Workspace
+        ws = Workspace(tmp_path)
+
+        # nonexistent file
+        with pytest.raises(FileNotFoundError, match="File does not exist"):
+            SomaYAML.parse_file("missing.md", ws)
+
+        # symlink detection
+        real_file = tmp_path / "target.md"
+        real_file.write_text("---\nid: sym-target\n---\n", encoding="utf-8")
+        symlink_file = tmp_path / "link.md"
+        symlink_file.symlink_to(real_file)
+        with pytest.raises(SomaYAMLError, match="Symlink parsing prohibited"):
+            SomaYAML.parse_file("link.md", ws)
+
+        # valid file
+        doc = SomaYAML.parse_file("target.md", ws)
+        assert doc.id == "sym-target"
+        assert doc.source_path == str(real_file.resolve())
+
+        # workspace returning string path (not tuple)
+        class StringWS:
+            def confine_path(self, p):
+                return str(real_file.resolve())
+        doc_str = SomaYAML.parse_file("target.md", StringWS())
+        assert doc_str.id == "sym-target"
+
+        # workspace returning symlink path
+        class SymlinkReturnWS:
+            def confine_path(self, p):
+                return str(symlink_file)
+        with pytest.raises(SomaYAMLError, match="Symlink parsing prohibited"):
+            SomaYAML.parse_file("link.md", SymlinkReturnWS())
+
+        # write_frontmatter
+        out_file = tmp_path / "written.md"
+        write_frontmatter(out_file, {"id": "written-id"}, "Written body")
+        assert out_file.exists()
+        doc_written = SomaYAML.parse_file("written.md", ws)
+        assert doc_written.id == "written-id"
+        assert doc_written.body == "Written body"
+
+    def test_parse_cell_frontmatter_branches(self, tmp_path: Path):
+        with pytest.raises(ValueError, match="No frontmatter delimiter"):
+            parse_cell_frontmatter("not frontmatter content")
+
+        with pytest.raises(ValueError, match="Unclosed frontmatter"):
+            parse_cell_frontmatter("---")
+
+        with pytest.raises(ValueError, match="Unclosed frontmatter"):
+            parse_cell_frontmatter("---\nid: unclosed\nline 2")
+
+        with pytest.raises(ValueError, match="Expected YAML mapping"):
+            parse_cell_frontmatter("---\n- item1\n- item2\n---\n")
+
+        # Zero-width spaces stripping
+        zw_text = "\u200b---\nid: zw\n---\nBody"
+        meta, body = parse_cell_frontmatter(zw_text)
+        assert meta["id"] == "zw"
+        assert body == "Body"
+
+    def test_helpers_get_body_and_parse_frontmatter(self):
+        # _get_body branches
+        assert _get_body("\u200bhello") == "hello"
+        assert _get_body("no delimiters") == "no delimiters"
+        assert _get_body("---") == "---"
+        assert _get_body("---\nid: 1\nno closing delim") == "---\nid: 1\nno closing delim"
+
+        # parse_frontmatter branches
+        assert parse_frontmatter(123) is None  # type: ignore
+        assert parse_frontmatter("\u200b---\nid: zw-fm\n---\n") == {"id": "zw-fm"}
+        assert parse_frontmatter("---\n---\n") == {}
+        assert parse_frontmatter("---\ninvalid: [unclosed\n---\n") is None
+
+    def test_dump_frontmatter_edge_types(self):
+        # null scalar
+        assert "null_val: null" in dump_frontmatter({"null_val": None})
+
+        # datetime scalar
+        dt = datetime.datetime(2026, 1, 1, 12, 0, 0, tzinfo=datetime.timezone.utc)
+        assert "2026-01-01" in dump_frontmatter({"timestamp": dt})
+
+        # empty map and empty list
+        dumped = dump_frontmatter({"empty_map": {}, "empty_list": []})
+        assert "empty_map: {}" in dumped
+        assert "empty_list: []" in dumped
+
+        # sequence of mappings
+        dumped_seq = dump_frontmatter({"items": [{"name": "alice", "score": 10}, {"name": "bob", "score": 20}]})
+        assert "items:" in dumped_seq
+        assert "name: alice" in dumped_seq
+        assert "name: bob" in dumped_seq
+
+    def test_parse_yaml_subset_syntax_and_depth_errors(self):
+        # Tab error
+        with pytest.raises(FrontmatterError, match="tab characters are not allowed"):
+            parse_yaml_subset("key:\n\tval: 1")
+
+        # Escapes
+        with pytest.raises(SomaYAMLError, match="Escape sequence \\\\0"):
+            parse_yaml_subset('key: "\\0"')
+
+        # Invalid hex/unicode escape fallback
+        res_bad_hex = parse_yaml_subset('key: "\\xZZ"')
+        assert res_bad_hex["key"] == "xZZ"
+        res_bad_u = parse_yaml_subset('key: "\\uZZZZ"')
+        assert res_bad_u["key"] == "uZZZZ"
+
+        # Trailing content after flow collection
+        with pytest.raises(FrontmatterError, match="trailing content after flow collection"):
+            parse_yaml_subset("key: [1, 2] extra_stuff")
+
+        # Flow sequence errors
+        with pytest.raises(FrontmatterError, match="unterminated flow sequence"):
+            parse_yaml_subset("key: [1, 2")
+
+        with pytest.raises(FrontmatterError, match="expected ',' in flow sequence"):
+            parse_yaml_subset("key: [[1] [2]]")
+
+        with pytest.raises(FrontmatterError, match="empty entry in flow collection"):
+            parse_yaml_subset("key: [1,,2]")
+
+        # Flow mapping errors
+        with pytest.raises(FrontmatterError, match="unterminated flow mapping"):
+            parse_yaml_subset("key: {a: 1")
+
+        with pytest.raises(FrontmatterError, match="expected ':' in flow mapping"):
+            parse_yaml_subset("key: {a 1}")
+
+        with pytest.raises(FrontmatterError, match="empty key in flow mapping"):
+            parse_yaml_subset("key: {: 1}")
+
+        with pytest.raises(FrontmatterError, match="expected ',' in flow mapping"):
+            parse_yaml_subset("key: {a: [1] b: [2]}")
+
+        # Block mapping syntax errors
+        with pytest.raises(FrontmatterError, match="unexpected indentation"):
+            parse_yaml_subset("  key: val\n    unexpected: 1")
+
+        with pytest.raises(FrontmatterError, match="unexpected sequence item inside a mapping"):
+            parse_yaml_subset("key: val\n- item")
+
+        with pytest.raises(FrontmatterError, match="expected 'key: value'"):
+            parse_yaml_subset("key: val\njustastring")
+
+        with pytest.raises(FrontmatterError, match="missing key"):
+            parse_yaml_subset(": val")
+
+        # Sequence with None items and nested items
+        seq_yaml = """
+items:
+  -
+  - foo: bar
+    baz: qux
+"""
+        parsed_seq = parse_yaml_subset(seq_yaml)
+        assert parsed_seq["items"][0] is None
+        assert parsed_seq["items"][1] == {"foo": "bar", "baz": "qux"}
+
+        # Duplicate keys in sequence item mapping
+        dup_seq_yaml = """
+items:
+  - dup: 1
+    dup: 2
+"""
+        with pytest.raises(SomaYAMLError, match="Duplicate key 'dup'"):
+            parse_yaml_subset(dup_seq_yaml)
+
+        # Unterminated quote in sequence
+        with pytest.raises(FrontmatterError, match="unterminated quoted string"):
+            parse_yaml_subset("items:\n  - \"unclosed\n  - next")
+
+        # Empty document returns {}
+        assert parse_yaml_subset("") == {}
+        assert parse_yaml_subset("   ") == {}
+
+        # Root document is sequence error
+        with pytest.raises(FrontmatterError, match="Expected YAML mapping at document root"):
+            parse_yaml_subset("- a\n- b")
+
+        # Depth limits (nest > MAX_DEPTH=30)
+        deep_flow = "[" * 35 + "1" + "]" * 35
+        with pytest.raises(SomaYAMLError, match="nesting depth"):
+            parse_yaml_subset(f"key: {deep_flow}")
+
+        # Unterminated / mismatched quote scalar in _parse_scalar
+        from soma_core.somayaml import _parse_scalar
+        with pytest.raises(FrontmatterError, match="unterminated quoted scalar"):
+            _parse_scalar("\"mismatched'")
+
+        # Big unicode escape invalid
+        res_bad_big_u = parse_yaml_subset('key: "\\U000000ZZ"')
+        assert res_bad_big_u["key"] == "U000000ZZ"
+
+        # CRLF line continuation
+        from soma_core.somayaml import _unescape_double
+        assert _unescape_double("line1\\\r\n  line2") == "line1  line2"
+
+        # _strip_comment quote escaping
+        from soma_core.somayaml import _strip_comment, _is_quote_closed, _parse_flow
+        assert _strip_comment(r'key: "val \"with\" quotes" # c') == r'key: "val \"with\" quotes" '
+        assert _strip_comment("key: 'it''s awesome' # c") == "key: 'it''s awesome' "
+
+        # Flow collections escaped quotes and unclosed flow string
+        res_flow_quotes = parse_yaml_subset('key: ["escaped \\" quote", \'escaped \'\' quote\']')
+        assert len(res_flow_quotes["key"]) == 2
+        with pytest.raises(FrontmatterError, match="unterminated quoted string"):
+            parse_yaml_subset('key: ["unclosed flow string ]')
+
+        # _is_quote_closed edge cases
+        assert _is_quote_closed('"', '"') is False
+        assert _is_quote_closed('foo\\"', '"') is False
+        assert _is_quote_closed('foo\\\\"', '"') is True
+        assert _is_quote_closed("''", "'") is True
+        assert _is_quote_closed("'''", "'") is False
+
+        # Unsupported prefixes
+        with pytest.raises(FrontmatterError, match="unsupported YAML construct"):
+            parse_yaml_subset("key: &anchor")
+
+        # _parse_flow unexpected end
+        with pytest.raises(FrontmatterError, match="unexpected end of flow collection"):
+            _parse_flow("[ ", 2)
+
+        # Empty flow collections and trailing commas
+        assert parse_yaml_subset("key: []") == {"key": []}
+        assert parse_yaml_subset("key: [1, 2,]") == {"key": [1, 2]}
+        assert parse_yaml_subset("key: {}") == {"key": {}}
+        assert parse_yaml_subset("key: {a: 1,}") == {"key": {"a": 1}}
+
+        # Block scalar styles |+ and |-
+        res_plus = parse_yaml_subset("key: |+\n  line 1\n  line 2\n")
+        assert res_plus["key"].endswith("\n")
+        res_minus = parse_yaml_subset("key: |-\n  line 1\n  line 2\n")
+        assert not res_minus["key"].endswith("\n")
+
+        # Key with no value and no children
+        res_none_val = parse_yaml_subset("key1:\nkey2: val2")
+        assert res_none_val["key1"] is None
+        assert res_none_val["key2"] == "val2"
+
+        # Unexpected indentation in sequence
+        with pytest.raises(FrontmatterError, match="unexpected indentation in sequence"):
+            parse_yaml_subset("items:\n  - a\n    - b")
+
+        # Sequence with - followed by indented mapping
+        res_nested_map = parse_yaml_subset("items:\n  -\n    nested: val")
+        assert res_nested_map["items"] == [{"nested": "val"}]
+
+        # Unterminated sequence string at EOF and before sibling
+        with pytest.raises(FrontmatterError, match="unterminated quoted string"):
+            parse_yaml_subset("items:\n  - \"unclosed at eof")
+        with pytest.raises(FrontmatterError, match="unterminated quoted string before sibling item"):
+            parse_yaml_subset("items:\n  - \"unclosed\n  - sibling")
+
+        # Depth limits on helper functions directly
+        from soma_core.somayaml import _parse_flow_map, _parse_block_map, _parse_block_seq
+        with pytest.raises(SomaYAMLError, match="nesting depth"):
+            _parse_flow("a", 0, depth=35)
+        with pytest.raises(SomaYAMLError, match="nesting depth"):
+            _parse_flow_map("{a: 1}", 0, depth=35)
+        with pytest.raises(SomaYAMLError, match="nesting depth"):
+            _parse_block_map([], 0, 0, depth=35)
+        with pytest.raises(SomaYAMLError, match="nesting depth"):
+            _parse_block_seq([], 0, 0, depth=35)
+        with pytest.raises(SomaYAMLError, match="Escape sequence"):
+            _unescape_double(r"\0")
+
+
+

@@ -45,8 +45,9 @@ def _handle_verify_changes(args: dict, gov) -> dict:
     if async_mode:
         from soma_core.verification_jobs import submit_verification_job
 
+        ws_str = str(getattr(workspace, "root", workspace))
         job = submit_verification_job(
-            workspace=workspace,
+            workspace=ws_str,
             files=files,
             layer1_only=layer1_only,
             task_plan=args.get("task_plan", ""),

@@ -228,3 +228,57 @@ def test_capture_build_outcome_cargo_and_go(tmp_path: Path, monkeypatch):
     assert res_go["verified"] is True
     assert res_go["command"] == "go"
 
+
+def test_telemetry_edge_cases_and_error_branches(tmp_path: Path, monkeypatch):
+    from soma_core.outcomes.telemetry import (
+        _run_verify,
+        detect_test_runner,
+        capture_mcp_outcomes,
+        record_verification_telemetry,
+    )
+    ws = str(tmp_path)
+
+    # 1. line 47: _run_verify FileNotFoundError -> None
+    def mock_run_fnf(*args, **kwargs):
+        raise FileNotFoundError("not found")
+    monkeypatch.setattr(subprocess, "run", mock_run_fnf)
+    assert _run_verify("nonexistent_binary", cwd=ws) is None
+    monkeypatch.undo()
+
+    # 2. line 78: Makefile read exception handled
+    makefile = tmp_path / "Makefile"
+    makefile.write_text("test:\n\t@echo ok\n", encoding="utf-8")
+    real_open = open
+    def mock_open_err(file, *args, **kwargs):
+        if str(file).endswith("Makefile") or str(file).endswith("signals.jsonl"):
+            raise OSError("read error")
+        return real_open(file, *args, **kwargs)
+    monkeypatch.setattr("builtins.open", mock_open_err)
+    cmd, name = detect_test_runner(ws)
+    assert cmd is None and name is None
+
+    # 3. lines 166-167: capture_mcp_outcomes exception handled
+    signals_file = tmp_path / ".soma" / "evidence" / "signals.jsonl"
+    signals_file.parent.mkdir(parents=True, exist_ok=True)
+    signals_file.write_text("dummy\n", encoding="utf-8")
+    assert capture_mcp_outcomes(ws) == []
+    monkeypatch.undo()
+
+    # 4. lines 259-261: record_verification_telemetry exception handled
+    cells_dir = tmp_path / ".soma" / "cells" / "vacuoles"
+    cells_dir.mkdir(parents=True, exist_ok=True)
+    cell_file = cells_dir / "test-cell.md"
+    fm = {
+        "id": "test-cell",
+        "type": "vacuole",
+        "target_paths": ["src/*.py"],
+        "fitness": {"triggers": 0, "true_positives": 0, "false_positives": 0, "score": 0.5},
+    }
+    cell_file.write_text(f"---\n{dump_frontmatter(fm)}---\n\n# Body\n", encoding="utf-8")
+    def mock_append_err(*args, **kwargs):
+        raise RuntimeError("db error")
+    monkeypatch.setattr("soma_core.telemetry.append_signals", mock_append_err)
+    assert record_verification_telemetry(ws, ["src/foo.py"], passed=True) is False
+
+
+

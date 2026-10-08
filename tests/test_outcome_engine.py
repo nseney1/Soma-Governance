@@ -45,7 +45,7 @@ class TestMatchCellsToChanges:
     """Tests for matching cells to changed files."""
 
     def test_cell_with_matching_target_is_returned(self, tmp_path):
-        from soma_core.telemetry import match_cells_to_changes
+        from soma_core.outcomes.engine import match_cells_to_changes
         ws = str(tmp_path)
         _make_cell(ws, 'cell-src', ['src/*.py'])
         result = match_cells_to_changes(ws, ['src/foo.py'])
@@ -54,7 +54,7 @@ class TestMatchCellsToChanges:
         assert any('cell-src' in cid for cid in cell_ids)
 
     def test_cell_with_non_matching_target_excluded(self, tmp_path):
-        from soma_core.telemetry import match_cells_to_changes
+        from soma_core.outcomes.engine import match_cells_to_changes
         ws = str(tmp_path)
         _make_cell(ws, 'cell-tests', ['tests/*.py'])
         result = match_cells_to_changes(ws, ['src/foo.py'])
@@ -62,14 +62,14 @@ class TestMatchCellsToChanges:
         assert not any('cell-tests' in cid for cid in cell_ids)
 
     def test_empty_changed_files_returns_empty(self, tmp_path):
-        from soma_core.telemetry import match_cells_to_changes
+        from soma_core.outcomes.engine import match_cells_to_changes
         ws = str(tmp_path)
         _make_cell(ws, 'cell-any', ['src/*.py'])
         result = match_cells_to_changes(ws, [])
         assert result == []
 
     def test_multiple_cells_only_matching_returned(self, tmp_path):
-        from soma_core.telemetry import match_cells_to_changes
+        from soma_core.outcomes.engine import match_cells_to_changes
         ws = str(tmp_path)
         _make_cell(ws, 'cell-match', ['src/*.py'])
         _make_cell(ws, 'cell-nomatch', ['docs/*.md'])
@@ -79,7 +79,7 @@ class TestMatchCellsToChanges:
         assert not any('cell-nomatch' in cid for cid in cell_ids)
 
     def test_wildcard_glob_matching(self, tmp_path):
-        from soma_core.telemetry import match_cells_to_changes
+        from soma_core.outcomes.engine import match_cells_to_changes
         ws = str(tmp_path)
         _make_cell(ws, 'cell-deep', ['src/**/*.py'])
         result = match_cells_to_changes(ws, ['src/sub/deep.py'])
@@ -325,4 +325,128 @@ class TestBug2OutcomeEngineSchema:
         signals = compute_fitness_signals(triggered_cells, outcomes)
         assert len(signals) == 1
         assert any('agent reported success' in r for r in signals[0]['reasons'])
+
+
+class TestOutcomeEngineExecution:
+    """Direct tests for soma_core.outcomes.engine functions."""
+
+    def test_get_changed_files(self, monkeypatch, tmp_path):
+        from soma_core.outcomes.engine import _get_changed_files
+        import subprocess
+
+        # 1. git diff success
+        def mock_check_output(cmd, **kwargs):
+            if "diff" in cmd:
+                return "src/app.py\nsrc/util.py\n"
+            return ""
+        monkeypatch.setattr(subprocess, "check_output", mock_check_output)
+        files = _get_changed_files(str(tmp_path))
+        assert files == ["src/app.py", "src/util.py"]
+
+        # 2. git status fallback
+        def mock_status(cmd, **kwargs):
+            if "diff" in cmd:
+                raise OSError("diff failed")
+            return " M src/status.py\n?? untracked.py\n"
+        monkeypatch.setattr(subprocess, "check_output", mock_status)
+        files = _get_changed_files(str(tmp_path))
+        assert "src/status.py" in files or "untracked.py" in files
+
+        # 3. both fail
+        def mock_fail(cmd, **kwargs):
+            raise OSError("git error")
+        monkeypatch.setattr(subprocess, "check_output", mock_fail)
+        assert _get_changed_files(str(tmp_path)) == []
+
+    def test_run_outcome_engine_no_cells_dir(self, tmp_path):
+        from soma_core.outcomes.engine import run_outcome_engine
+        assert run_outcome_engine(str(tmp_path)) == 0
+
+    def test_run_outcome_engine_no_matches(self, tmp_path):
+        from soma_core.outcomes.engine import run_outcome_engine
+        cells_dir = tmp_path / ".soma" / "cells" / "vacuoles"
+        cells_dir.mkdir(parents=True)
+        assert run_outcome_engine(str(tmp_path)) == 0
+
+    def test_run_outcome_engine_full_flow(self, monkeypatch, tmp_path):
+        from soma_core.outcomes.engine import run_outcome_engine
+        ws = str(tmp_path)
+        _make_cell(ws, "cell-active", ["src/*.py"])
+
+        # Mock dependencies in run_outcome_engine
+        monkeypatch.setattr("soma_core.outcomes.engine._get_changed_files", lambda w: ["src/code.py"])
+        monkeypatch.setattr("soma_core.outcomes.telemetry.capture_test_outcome", lambda w: {"verified": True, "passed": True, "framework": "pytest"})
+        monkeypatch.setattr("soma_core.outcomes.telemetry.capture_mcp_outcomes", lambda w: [{"cell_id": "cell-active", "outcome": "success"}])
+        monkeypatch.setattr("soma_core.outcomes.insights.read_human_insight_signals", lambda w: ([{"signal_type": "blind_spot"}, {"_path": "/path/boost.md", "cell": "boost", "signal": 1.0, "verified": True, "reasons": ["boost"]}], 100))
+
+        code = run_outcome_engine(ws)
+        assert code == 0
+
+    def test_run_outcome_engine_append_log_failure(self, monkeypatch, tmp_path):
+        from soma_core.outcomes.engine import run_outcome_engine
+        ws = str(tmp_path)
+        _make_cell(ws, "cell-active", ["src/*.py"])
+
+        monkeypatch.setattr("soma_core.outcomes.engine._get_changed_files", lambda w: ["src/code.py"])
+        monkeypatch.setattr("soma_core.outcomes.fitness.append_fitness_log", lambda *args, **kwargs: False)
+
+        code = run_outcome_engine(ws)
+        assert code == 0
+
+    def test_run_outcome_engine_empty_signals(self, monkeypatch, tmp_path):
+        from soma_core.outcomes.engine import run_outcome_engine
+        ws = str(tmp_path)
+        _make_cell(ws, "cell-active", ["src/*.py"])
+
+        monkeypatch.setattr("soma_core.outcomes.engine._get_changed_files", lambda w: ["src/code.py"])
+        monkeypatch.setattr("soma_core.outcomes.fitness.compute_fitness_signals", lambda *args, **kwargs: [])
+
+        code = run_outcome_engine(ws)
+        assert code == 0
+
+    def test_main_entrypoint(self, monkeypatch, tmp_path):
+        from soma_core.outcomes.engine import main
+        import sys
+        ws = str(tmp_path)
+        reconfigured = []
+        monkeypatch.setattr(sys.stdout, "reconfigure", lambda **kwargs: reconfigured.append(kwargs))
+        monkeypatch.setattr("soma_core.outcomes.engine.run_outcome_engine", lambda w=None: 42 if w is not None else 24)
+
+        assert main(workspace=ws) == 42
+        assert len(reconfigured) == 1
+
+        assert main() == 24
+        assert len(reconfigured) == 2
+
+    def test_run_outcome_engine_mod_branches(self, monkeypatch, tmp_path):
+        from soma_core.outcomes.engine import run_outcome_engine
+        import types
+        import sys
+        ws = str(tmp_path)
+
+        # 1. mod is provided
+        custom_mod = types.ModuleType("custom_mod")
+        custom_mod.resolve_workspace = lambda: ws
+        assert run_outcome_engine(mod=custom_mod) == 0
+
+        # 2. soma_core.telemetry not present, fallback to soma_core.outcomes
+        saved_telem = sys.modules.pop("soma_core.telemetry", None)
+        try:
+            assert run_outcome_engine(workspace=ws) == 0
+        finally:
+            if saved_telem is not None:
+                sys.modules["soma_core.telemetry"] = saved_telem
+
+        # 3. neither soma_core.telemetry nor soma_core.outcomes present, fallback to sys.modules[__name__]
+        saved_telem = sys.modules.pop("soma_core.telemetry", None)
+        saved_outcomes = sys.modules.pop("soma_core.outcomes", None)
+        try:
+            assert run_outcome_engine(workspace=ws) == 0
+        finally:
+            if saved_telem is not None:
+                sys.modules["soma_core.telemetry"] = saved_telem
+            if saved_outcomes is not None:
+                sys.modules["soma_core.outcomes"] = saved_outcomes
+
+
 

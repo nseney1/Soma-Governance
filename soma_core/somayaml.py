@@ -856,12 +856,7 @@ def parse_frontmatter(content: str) -> Optional[Dict[str, Any]]:
         return {}
 
     try:
-        data = parse_yaml_subset(fm_text)
-        if data is None:
-            return {}
-        if not isinstance(data, dict):
-            return None
-        return data
+        return parse_yaml_subset(fm_text)
     except Exception:
         return None
 
@@ -890,8 +885,6 @@ def parse_cell_frontmatter(content_or_path: str) -> Tuple[Dict[str, Any], str]:
 
     fm_text = content[nl + 1 : m.start()].strip()
     data = {} if not fm_text else parse_yaml_subset(fm_text)
-    if not isinstance(data, dict):
-        raise ValueError("Frontmatter is not a mapping")
 
     body = content[m.end():].lstrip("\r\n")
     return data, body
@@ -923,14 +916,10 @@ class SomaYAML:
                     fm_text = working_content[nl + 1 : m.start()].strip()
                     body = working_content[m.end():].strip()
                     metadata = parse_yaml_subset(fm_text) if fm_text else {}
-                    if not isinstance(metadata, dict):
-                        raise SomaYAMLError("Frontmatter must be a mapping")
                     return SomaDocument(metadata=metadata, body=body)
 
         data = parse_yaml_subset(working_content)
-        if isinstance(data, dict):
-            return SomaDocument(metadata=data, body="")
-        raise SomaYAMLError(f"Expected YAML mapping at document root, got {type(data).__name__}")
+        return SomaDocument(metadata=data, body="")
 
     @staticmethod
     def parse_file(rel_path: str | Path, workspace: Any) -> SomaDocument:

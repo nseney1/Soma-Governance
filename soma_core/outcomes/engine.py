@@ -65,7 +65,14 @@ def run_outcome_engine(workspace: Optional[Workspace | Path | str] = None, mod: 
         capture_test_outcome,
     )
 
-    m = mod if mod is not None else sys.modules.get("soma_core.telemetry") or sys.modules.get("soma_core.outcomes") or sys.modules[__name__]
+    if mod is not None:
+        m = mod
+    elif "soma_core.telemetry" in sys.modules:
+        m = sys.modules["soma_core.telemetry"]
+    elif "soma_core.outcomes" in sys.modules:
+        m = sys.modules["soma_core.outcomes"]
+    else:
+        m = sys.modules[__name__]
     resolve_ws = getattr(m, "resolve_workspace", resolve_workspace)
     raw_ws = workspace if workspace is not None else resolve_ws()
     ws = as_workspace(raw_ws)
