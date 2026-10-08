@@ -181,6 +181,6 @@
     "tests/test_transfer_hgt.py",
     "tests/test_verification/test_layer1.py"
   ],
-  "commit_sha": "bd6152ae0c257818f45c8f9a58ba28a0d6d42b8c",
-  "tree_hash": "6bf484df68a9a70405e8806e1e5f7b45c5e42709"
+  "commit_sha": "612092c07a9f1597b8a74fd2905fd1c653e5bd77",
+  "tree_hash": "7ca3b6e06f18fe3d6ed811ac18f3860f61fdbf4f"
 }
