@@ -4,7 +4,7 @@ from __future__ import annotations
 import importlib
 from typing import Any
 
-__version__ = "0.121.1"
+__version__ = "0.122.0"
 
 # Explicit mapping of exported symbol name -> (module_name, attribute_name)
 _EXPORTS: dict[str, tuple[str, str | None]] = {
@@ -17,7 +17,6 @@ _EXPORTS: dict[str, tuple[str, str | None]] = {
     "errors": ("soma_core.errors", None),
     "evidence": ("soma_core.evidence", None),
     "evidence_collector": ("soma_core.evidence_collector", None),
-    "frontmatter": ("soma_core.frontmatter", None),
     "homeostasis": ("soma_core.homeostasis", None),
     "inference_provider": ("soma_core.inference_provider", None),
     "insights": ("soma_core.insights", None),
@@ -29,6 +28,8 @@ _EXPORTS: dict[str, tuple[str, str | None]] = {
     "receipts": ("soma_core.receipts", None),
     "scoring": ("soma_core.scoring", None),
     "sentinels": ("soma_core.sentinels", None),
+    "skills": ("soma_core.skills", None),
+    "somayaml": ("soma_core.somayaml", None),
     "storage": ("soma_core.storage", None),
     "sweep_session": ("soma_core.sweep_session", None),
     "sync": ("soma_core.sync", None),
@@ -61,7 +62,10 @@ _EXPORTS: dict[str, tuple[str, str | None]] = {
     "STATUS_APOPTOSIS": ("soma_core.lifecycle", "STATUS_APOPTOSIS"),
     "STATUS_APOPTOSIS_WARNING": ("soma_core.lifecycle", "STATUS_APOPTOSIS_WARNING"),
     "STATUS_DORMANT": ("soma_core.lifecycle", "STATUS_DORMANT"),
-    "parse_cell_frontmatter": ("soma_core.frontmatter", "parse_cell_frontmatter"),
+    "parse_cell_frontmatter": ("soma_core.somayaml", "parse_cell_frontmatter"),
+    "SomaYAML": ("soma_core.somayaml", "SomaYAML"),
+    "SomaDocument": ("soma_core.somayaml", "SomaDocument"),
+    "SomaYAMLError": ("soma_core.somayaml", "SomaYAMLError"),
     "append_signal": ("soma_core.telemetry", "append_signal"),
     "Workspace": ("soma_core.workspace", "Workspace"),
     "GitWorkspace": ("soma_core.workspace", "GitWorkspace"),

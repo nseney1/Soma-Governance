@@ -21,7 +21,7 @@ import sys
 from typing import List, Optional, Union
 
 from soma_core.workspace import Workspace, resolve_workspace
-from soma_core.frontmatter import parse_frontmatter
+from soma_core.somayaml import parse_frontmatter
 
 
 def resolve_metrics_dir(workspace: Path | str) -> Path:

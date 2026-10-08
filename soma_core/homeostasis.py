@@ -20,7 +20,7 @@ import sys
 from typing import Any, Dict, List, Optional, Tuple
 
 from soma_core.workspace import resolve_workspace
-from soma_core.frontmatter import parse_frontmatter, _get_body
+from soma_core.somayaml import parse_frontmatter, _get_body
 
 # ── Soma Sleep Engine ──────────────────────────────────────────────────────
 

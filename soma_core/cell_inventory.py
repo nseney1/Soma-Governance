@@ -264,7 +264,7 @@ def find_matching_cells(
     allow_basename_match: bool = True,
 ) -> List[CellMatch]:
     """Find all cells in cells_dir whose target_paths match changed_files."""
-    from soma_core.frontmatter import parse_frontmatter
+    from soma_core.somayaml import parse_frontmatter
 
     cells_path = Path(cells_dir)
     if not cells_path.is_dir():
@@ -333,7 +333,7 @@ def find_matching_cells(
     return matches
 
 
-from soma_core.frontmatter import parse_frontmatter
+from soma_core.somayaml import parse_frontmatter
 
 __all__ = [
     "CellInventory",

@@ -35,7 +35,7 @@ def _check_python_version() -> bool:
 
 def _check_zero_dependencies() -> bool:
     """Verify that the frontmatter engine is operational with zero dependencies."""
-    from soma_core.frontmatter import parse_frontmatter
+    from soma_core.somayaml import parse_frontmatter
 
     test_fm = "---\nid: test\ntype: wall\n---\n"
     ok = parse_frontmatter(test_fm) == {"id": "test", "type": "wall"}

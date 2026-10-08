@@ -47,7 +47,7 @@ def warn(message: str) -> None:
         pass
 
 
-from soma_core.frontmatter import (
+from soma_core.somayaml import (
     FrontmatterError,
     parse_yaml_subset,
     parse_frontmatter,

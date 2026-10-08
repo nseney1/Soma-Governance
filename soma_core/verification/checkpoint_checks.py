@@ -218,6 +218,19 @@ def _resolve_canonical_test_candidates(root: Path, source_file: Path) -> list[Pa
         candidates.append(test_dir / "test_rule_content.py")
     if stem == "invariants":
         candidates.append(test_dir / "test_enforcement_ladder.py")
+    if parent_name == "skills" or stem in ("graph", "handoff", "slots", "skills", "artifacts"):
+        candidates.append(test_dir / "test_skills_and_handoff.py")
+    if parent_name == "handlers" or stem in ("registry", "projection"):
+        candidates.append(test_dir / "test_mcp_tools_contract.py")
+        candidates.append(test_dir / "test_mcp_dispatch.py")
+        candidates.append(test_dir / "test_mcp_projection.py")
+    if parent_name == "outcomes":
+        candidates.append(test_dir / "test_outcome_engine.py")
+        candidates.append(test_dir / "test_outcomes.py")
+    if parent_name == "hooks":
+        candidates.append(test_dir / "test_hooks_lifecycle.py")
+    if stem == "somayaml":
+        candidates.append(test_dir / "test_somayaml.py")
 
     # 4. Flat root candidates
     candidates.append(test_dir / f"test_{stem}.py")
@@ -657,7 +670,7 @@ def check_paper_walls(root: Path, strict: bool = False) -> list[dict]:
     for wall_file in sorted(walls_dir.glob("*.md")):
         try:
             content = wall_file.read_text(encoding="utf-8")
-            from soma_core.frontmatter import parse_frontmatter
+            from soma_core.somayaml import parse_frontmatter
             meta = parse_frontmatter(content)
             if not isinstance(meta, dict):
                 issues.append({

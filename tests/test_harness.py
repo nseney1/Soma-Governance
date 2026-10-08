@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 import pytest
 
-from soma_core.frontmatter import parse_cell_frontmatter
+from soma_core.somayaml import parse_cell_frontmatter
 try:
     from harness import SomaTestHarness
 except ImportError:

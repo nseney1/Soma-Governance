@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from soma_core.cell_inventory import CellInventoryError, inventory_cells
-from soma_core.frontmatter import parse_frontmatter
+from soma_core.somayaml import parse_frontmatter
 from soma_core.telemetry import EventConflictError, StaleGenerationError
 from soma_core.workspace import Workspace
 
@@ -27,6 +27,8 @@ TYPE_TRANSLATION_MAP: dict[str, str] = {
     "membrane": "membrane",
     "plasmodesmata": "plasmodesmata",
 }
+
+__all__ = ["Governance", "TYPE_TRANSLATION_MAP"]
 
 VALID_SOURCES = ('ci', 'manual', 'mcp', 'session')
 

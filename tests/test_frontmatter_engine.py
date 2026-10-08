@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import pytest
-from soma_core.frontmatter import (
+from soma_core.somayaml import (
     FrontmatterError,
     dump_frontmatter,
     parse_cell_frontmatter,

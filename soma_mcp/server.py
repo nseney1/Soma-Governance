@@ -46,6 +46,7 @@ _READ_TOOLS = frozenset({
 })
 _WRITE_TOOLS = frozenset({
     "soma_report_outcome", "soma_capture_insight", "soma_create_cell", "soma_create_rule",
+    "soma_handoff",
 })
 _EXECUTE_TOOLS = frozenset({
     "soma_propose_change", "soma_verify_changes", "soma_checkpoint",
@@ -60,6 +61,7 @@ _RATE_LIMITS = {
     "soma_verify_changes": (5, 60),
     "soma_checkpoint": (3, 60),
     "soma_poll_verification": (60, 60),
+    "soma_handoff": (20, 60),
 }
 
 

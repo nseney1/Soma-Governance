@@ -9,7 +9,7 @@ import sys
 import subprocess
 import pytest
 
-from soma_core.frontmatter import parse_frontmatter
+from soma_core.somayaml import parse_frontmatter
 from tests.helpers_cell import soma_workspace, write_cell_with_fitness
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-from soma_core.frontmatter import dump_frontmatter, parse_frontmatter
+from soma_core.somayaml import dump_frontmatter, parse_frontmatter
 from soma_core.workspace import Workspace, resolve_workspace_path as resolve_workspace
 
 CELL_TYPE_DIRS: dict[str, str] = {

@@ -3,6 +3,29 @@
 All notable changes to Soma are documented here.
 This project uses [Semantic Versioning](https://semver.org/).
 
+## [0.122.0] — 2026-10-08 — "Zero-Dependency SomaYAML, Horizontal Skill Graph, Response Projection & Lean Gateway"
+
+### Core Architecture, Swarm Protocols & Gateway Optimization
+- **Zero-Dependency SomaYAML (`soma_core/somayaml.py`)**:
+  - Implements pure standard library recursive-descent YAML frontmatter parser replacing external dependencies.
+  - Complete drop-in parity across all 26+ frontmatter callers with DoS recursion guards, YAML bomb prevention, and zero-width anti-poisoning filtering.
+  - Safely deletes `soma_core/frontmatter.py` with 0 residual references in AST scan.
+- **Horizontal Skill Graph & Fail-Closed Slot Resolution (`soma_core/skills/`)**:
+  - `soma_core/skills/graph.py`: Skill graph discovery and topology validation supporting producer/consumer contracts.
+  - `soma_core/skills/slots.py`: Fail-closed parameterized slot resolution for swarm skills.
+  - `soma_core/skills/handoff.py`: File-buffered ticket routing emitting compact prompt blocks (<150 tokens) and persisting HMAC-verified envelopes to `.soma/swarm/handoffs/`.
+  - `soma_cli/skills.py`: CLI porcelain `soma skill {list,inspect,slots}` and `soma handoff`.
+- **Opt-In Response Projection (`soma_mcp/projection.py`)**:
+  - Implements response projection views (`full`, `summary`, `ids`) and arbitrary dot-notation field traversal (`fields=[...]`) to reduce agent context token consumption.
+  - Embedded SOMA-V01 credential and secret scrubbing across all tool responses.
+- **Dual-Plane MCP Gateway Decomposition (`soma_mcp/`)**:
+  - `soma_mcp/registry.py`: Control Plane defining canonical tool schemas, argument normalization, and strict workspace boundary confinement.
+  - `soma_mcp/handlers/`: Execution Plane with decoupled handlers (`governance.py`, `verification.py`, `audit.py`, `telemetry.py`) under 280 LOC each.
+  - `soma_mcp/tools.py`: Ultra-lean gateway router under 150 LOC.
+- **Accumulator Module Decompositions (`soma_core/outcomes/`, `soma_cli/hooks/`)**:
+  - Decomposes legacy `soma_core/outcomes.py` into focused subpackage `soma_core/outcomes/` (`engine.py`, `fitness.py`, `harvest.py`, `insights.py`, `telemetry.py`).
+  - Decomposes legacy `soma_cli/hooks.py` into modular subpackage `soma_cli/hooks/` (`redaction.py`, `safety.py`, `management.py`, `runtime.py`).
+
 ## [0.121.1] — 2026-10-08 — "Gate 4.5 Tree Hash Binding, Deduplication & Safety Hardening"
 
 ### Security, Verification & Safety Hardening

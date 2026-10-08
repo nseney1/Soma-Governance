@@ -8,7 +8,7 @@ import sys
 
 import pytest
 
-from soma_core.frontmatter import parse_frontmatter
+from soma_core.somayaml import parse_frontmatter
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CELLS_DIR = os.path.join(REPO_ROOT, ".soma", "cells")

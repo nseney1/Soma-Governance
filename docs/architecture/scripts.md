@@ -1,10 +1,10 @@
 # Scripts Reference
 
-This document catalogs 77 executable scripts, command modules, SDK modules, and MCP/core modules in the Soma governance framework.
+This document catalogs 78 executable scripts, command modules, SDK modules, and MCP/core modules in the Soma governance framework.
 
 ## Counting Method
 
-Counts are generated from the source tree with mutually exclusive categories: package initializers (`__init__.py`, `__main__.py`) and subpackages (`soma_core/workspace/`, `soma_core/lifecycle/`, `soma_core/schemas/`) are excluded; `install/hooks/pre-commit` is counted as the lifecycle script; and all non-initializer `soma_core/*.py` modules are grouped with the MCP modules. This produces 77 unique paths with no double counting.
+Counts are generated from the source tree with mutually exclusive categories: package initializers (`__init__.py`, `__main__.py`) and subpackages (`soma_core/workspace/`, `soma_core/lifecycle/`, `soma_core/schemas/`, `soma_core/outcomes/`, `soma_cli/hooks/`) are excluded; `install/hooks/pre-commit` is counted as the lifecycle script; and all non-initializer `soma_core/*.py` modules are grouped with the MCP modules. This produces 78 unique paths with no double counting.
 
 ## Summary by Category
 
@@ -14,8 +14,8 @@ Counts are generated from the source tree with mutually exclusive categories: pa
 | [Verification Scripts](#verification-scripts--python) | Python (`soma_core/verification/`) | 14 | Deterministic AST checkers, coverage tools, and adversarial verification |
 | [CLI Commands](#cli-commands--python-soma_cli) | Python and bash (`soma_cli/`, root) | 22 | CLI launcher and command implementation modules |
 | [SDK Modules](#sdk-modules--python-soma_sdk) | Python (`soma_sdk/`) | 8 | Canonical scoring, parsing, telemetry, hot-zone, and governance APIs |
-| [MCP and Core Modules](#mcp-and-core-modules) | Python (`soma_mcp/`, `soma_core/`) | 32 | MCP transport, dispatch, confinement, content inventory, canonical evidence, cache, errors, receipts, and atomic storage |
-| **Total** | | **77** | Unique paths under the method above |
+| [MCP and Core Modules](#mcp-and-core-modules) | Python (`soma_mcp/`, `soma_core/`) | 33 | MCP transport, dispatch, confinement, content inventory, canonical evidence, cache, errors, receipts, and atomic storage |
+| **Total** | | **78** | Unique paths under the method above |
 
 ---
 
@@ -69,7 +69,7 @@ These 22 paths provide the root `soma` launcher and 21 non-initializer Python mo
 | **`genesis_generator.py`** | `soma_cli/genesis_generator.py` | Generates candidate cell files in `vacuoles/` and architecture map `docs/organelles.md` from scan results. |
 | **`genesis_scanner.py`** | `soma_cli/genesis_scanner.py` | Language-agnostic codebase scanner detecting 8 architectural patterns for governance cell candidate generation. |
 | **`harvest.py`** | `soma_cli/harvest.py` | `soma harvest`: Retroactively harvests telemetry from git commit history to bootstrap baseline cell fitness and eliminate cold-start unobserved gaps. |
-| **`hooks.py`** | `soma_cli/hooks.py` | `soma hook <phase>`: Pure Python cross-platform lifecycle hook runner for `pre-commit`, `safety-gate`, `pre-invocation`, and `session-close`. |
+| **`skills.py`** | `soma_cli/skills.py` | `soma skill`, `soma handoff`: Porcelain commands for inspecting skill graphs, slot resolution, and swarm handoffs. |
 | **`init.py`** | `soma_cli/init.py` | `soma init`: Initializes rules for Gemini, Claude Code, Cursor, or Copilot; it does not auto-detect Kiro. |
 | **`oracle.py`** | `soma_cli/oracle.py` | `soma oracle`: Cell health classification, diagnostics, and pruning recommendations (wraps `oracle_checkpoint.py`). |
 | **`pathcheck.py`** | `soma_cli/pathcheck.py` | Shell-aware PATH guidance: finds where pip installed `soma` and prints the line to add for zsh, bash, fish or PowerShell. Used by `soma doctor` and the installers; never edits dotfiles itself (`soma doctor --fix-path` does, on request). |
@@ -106,12 +106,14 @@ These 8 non-initializer modules provide the canonical Python APIs used by the CL
 
 ## MCP and Core Modules
 
-These 31 modules implement the MCP server, state-bound authorization, safe cell inventory, frontmatter parsing, verification job orchestration, canonical evidence reading, transactional resource locking, self-healing quarantine, atomic storage, and standardized domain errors. Package initializers and `soma_mcp/__main__.py` are excluded from the count.
+These 33 modules implement the MCP server, state-bound authorization, safe cell inventory, YAML frontmatter parsing, verification job orchestration, canonical evidence reading, transactional resource locking, self-healing quarantine, atomic storage, and standardized domain errors. Package initializers and `soma_mcp/__main__.py` are excluded from the count.
 
 | Module | Location | Purpose |
 |:-------|:---------|:--------|
 | **`server.py`** | `soma_mcp/server.py` | JSON-RPC transport, capability filtering, canonical `SOMA_WORKSPACE` injection, and receipt issuance/redemption. |
-| **`tools.py`** | `soma_mcp/tools.py` | Canonical 19-tool definitions and implementations for read, write, and execute operations. |
+| **`tools.py`** | `soma_mcp/tools.py` | Canonical 20-tool router with input normalization, response projection, and dispatch (<150 LOC). |
+| **`registry.py`** | `soma_mcp/registry.py` | MCP Control Plane: Tool definitions, canonical schemas, parameter translation, and workspace boundary confinement. |
+| **`projection.py`** | `soma_mcp/projection.py` | Opt-in response projection engine for token reduction and SOMA-V01 credential scrubbing. |
 | **`security.py`** | `soma_mcp/security.py` | Workspace/path confinement and cell-name validation. |
 | **`integrity.py`** | `soma_mcp/integrity.py` | Cell manifest generation, signing, and verification. |
 | **`cell_cache.py`** | `soma_mcp/cell_cache.py` | Content-fingerprinted parsed-cell cache using the canonical race-detecting inventory; stale or unsafe trees fail closed. |
@@ -128,7 +130,7 @@ These 31 modules implement the MCP server, state-bound authorization, safe cell 
 | **`cell_inventory.py`** | `soma_core/cell_inventory.py` | Captures stable cell bytes and content fingerprints without following symlinks; detects concurrent changes and unsafe trees. |
 | **`evidence.py`** | `soma_core/evidence.py` | Standard-library canonical reader for weighted `signals.jsonl` evidence, independent trigger/outcome dimensions, and structured parse errors. |
 | **`errors.py`** | `soma_core/errors.py` | Standardized typed domain error hierarchy (`SomaError`, `SomaValidationError`, `CellCorruptError`, `ReceiptExpiredError`, `LockTimeoutError`). |
-| **`frontmatter.py`** | `soma_core/frontmatter.py` | Standalone zero-dependency frontmatter parsing and YAML header extraction decoupled from MCP runtime. |
+| **`somayaml.py`** | `soma_core/somayaml.py` | Zero-dependency YAML and frontmatter parser with DoS recursion guards, anchor attack prevention, and UTF-8 validation. |
 | **`locking.py`** | `soma_core/locking.py` | Cross-platform transactional resource locking with timeout fences and native Windows fallback. |
 | **`quarantine.py`** | `soma_core/quarantine.py` | Self-healing quarantine isolating damaged YAML cells and unparseable JSONL files to preserve system availability. |
 | **`storage.py`** | `soma_core/storage.py` | Crash-resilient atomic file writes via temporary files, directory fsync, and exponential backoff retry on Windows sharing violations (WinError 32). |
@@ -137,7 +139,6 @@ These 31 modules implement the MCP server, state-bound authorization, safe cell 
 | **`sweep_session.py`** | `soma_core/sweep_session.py` | Session transcript scanning, signal aggregation, and metric collection for sweep operations. |
 | **`evidence_collector.py`** | `soma_core/evidence_collector.py` | Ground-truth evidence collection and observation processing for rule evaluation. |
 | **`command_safety.py`** | `soma_core/command_safety.py` | Pure-stdlib lexical command tokenizer, wrapper unrolling automaton, and structured safety-gate analyzer. |
-| **`outcomes.py`** | `soma_core/outcomes.py` | Verifiable outcome reflection, credit assignment, fitness signals, transcript updater, and ACE reflector loop. |
 | **`metrics.py`** | `soma_core/metrics.py` | Metrics snapshots, token census aggregation, cell quorum sensing, coverage mapping, and immune report cards. |
 | **`sentinels.py`** | `soma_core/sentinels.py` | Subagent liveness & deadlock detection, protocol escalation recommender, and last-gasp apoptosis sentinels. |
 | **`ast_match.py`** | `soma_core/ast_match.py` | Syntactic AST trigger matching engine (imports, call sites, decorators) with fast diff token pre-filtering. |

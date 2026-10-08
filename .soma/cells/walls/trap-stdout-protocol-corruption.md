@@ -3,40 +3,38 @@ id: trap-stdout-protocol-corruption
 domain: correctness
 type: wall
 enforcement: gate
-hypothesis: Hook scripts that echo human-readable text to stdout after emitting their
-  JSON protocol response corrupt the caller's JSON parser silently — no error is raised,
-  the downstream consumer just gets garbage
-prediction: Will fire when an enzyme or hook script adds echo/printf to stdout for
-  debugging, status messages, or logging instead of redirecting to stderr
+hypothesis: "Hook scripts that echo human-readable text to stdout after emitting their JSON protocol response corrupt the caller's JSON parser silently — no error is raised, the downstream consumer just gets garbage"
+prediction: "Will fire when an enzyme or hook script adds echo/printf to stdout for debugging, status messages, or logging instead of redirecting to stderr"
 falsification: 0 findings in 10 sessions → prune
 target_paths:
-- soma_cli/hooks.py
-- soma_core/sync.py
-- install/hooks/pre-commit
-- soma
+  - "soma_cli/hooks/**"
+  - soma_core/sync.py
+  - install/hooks/pre-commit
+  - soma
 triggers:
-- enzyme_modification
-- hook_modification
-- shell_script_change
+  - enzyme_modification
+  - hook_modification
+  - shell_script_change
 minimum_mode: breeze
 expiry_sessions: 50
 expiry_days: 180
-created: '2026-10-01'
+created: 2026-10-01
 impact_weight: 1.2
 tags:
-- correctness
-- protocol
-- stdout
-- silent-corruption
-- critical
+  - correctness
+  - protocol
+  - stdout
+  - silent-corruption
+  - critical
 fitness:
   score: 1.0
   impact_weight: 1.2
-  triggers: 4
-  true_positives: 4
-  false_positives: 0
-  last_trigger_date: '2026-10-01T04:26:19Z'
+  triggers: 7
+  true_positives: 4.2556
+  false_positives: 0.5112
+  last_trigger_date: "2026-10-08T07:19:48Z"
 ---
+
 All hook scripts communicate with their caller via JSON on stdout. Any
 non-JSON output to stdout silently corrupts the protocol.
 

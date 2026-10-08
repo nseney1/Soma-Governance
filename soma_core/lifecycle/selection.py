@@ -11,7 +11,7 @@ import shutil
 import sys
 from typing import Optional
 
-from soma_core.frontmatter import dump_frontmatter
+from soma_core.somayaml import dump_frontmatter
 from soma_core.workspace import Workspace, resolve_workspace
 from .constants import (
     EXTINCTION_THRESHOLD,
@@ -21,6 +21,14 @@ from .parsers import (
     get_type_plural,
     parse_cell,
 )
+
+__all__ = [
+    "run_cell_selection",
+    "select_cell",
+    "cli_cell_crossover",
+    "crossover_cells",
+    "tournament_select",
+]
 
 
 def run_cell_selection(workspace: Workspace | Path | str | None = None, execute: bool = False) -> int:

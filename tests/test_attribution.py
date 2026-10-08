@@ -18,7 +18,7 @@ from soma_core.attribution import (
     attribute_verification_outcome,
     infer_cell_risk_categories,
 )
-from soma_core.frontmatter import parse_frontmatter
+from soma_core.somayaml import parse_frontmatter
 from soma_core.verification import (
     ArbitrationResult,
     Claim,

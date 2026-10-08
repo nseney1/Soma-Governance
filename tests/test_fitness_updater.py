@@ -11,7 +11,7 @@ from pathlib import Path
 from datetime import datetime, timezone
 
 import pytest
-from soma_core.frontmatter import dump_frontmatter
+from soma_core.somayaml import dump_frontmatter
 
 # Will fail until implementation exists — that's the TDD red phase
 from soma_core.telemetry import (

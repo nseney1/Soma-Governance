@@ -53,7 +53,7 @@ if [ -n "$NEW_FILES" ]; then
     soma_py -c "
 import sys, glob
 from fnmatch import fnmatch
-from soma_core.frontmatter import parse_frontmatter
+from soma_core.somayaml import parse_frontmatter
 cells_dir = '.soma/cells'
 patterns = []
 for f in glob.glob(f'{cells_dir}/**/*.md', recursive=True):

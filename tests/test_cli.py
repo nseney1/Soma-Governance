@@ -431,6 +431,40 @@ class TestPorcelainCLIFacade:
         assert rc_err == 1
 
 
+def test_cli_skill_and_handoff(tmp_path, capsys):
+    from soma_core.workspace import Workspace
+    import soma_cli.cli as cli
+    ws = Workspace(tmp_path)
+    ws.scaffold()
+    skills_dir = tmp_path / ".soma" / "skills"
+    skills_dir.mkdir(parents=True)
+    (skills_dir / "scout.md").write_text(
+        "---\nid: scout\ntier: guardrail\nproduces: [Finding]\nhandoff_targets: [fixer]\n---\n",
+        encoding="utf-8",
+    )
+    (skills_dir / "fixer.md").write_text(
+        "---\nid: fixer\ntier: lane\nconsumes: [Finding]\n---\n",
+        encoding="utf-8",
+    )
+
+    rc_skill = cli.main([
+        "skill", "list",
+        "--workspace", str(tmp_path),
+        "--json",
+    ])
+    assert rc_skill == 0
+
+    rc_handoff = cli.main([
+        "handoff",
+        "--workspace", str(tmp_path),
+        "--from", "scout",
+        "--to", "fixer",
+        "--artifact", "Finding",
+        "--payload", '{"issue": "test"}',
+    ])
+    assert rc_handoff == 0
+
+
 
 
 

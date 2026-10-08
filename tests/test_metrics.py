@@ -16,7 +16,7 @@ from soma_core.metrics import (
     calculate_immune_grade,
     take_snapshot,
 )
-from soma_core.frontmatter import dump_frontmatter
+from soma_core.somayaml import dump_frontmatter
 
 
 def test_letter_grade_thresholds() -> None:

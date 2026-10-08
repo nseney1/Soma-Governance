@@ -13,7 +13,7 @@ from pathlib import Path
 import pytest
 
 from soma_cli.transfer import export_cell, import_cell, run_transfer
-from soma_core.frontmatter import dump_frontmatter, parse_frontmatter
+from soma_core.somayaml import dump_frontmatter, parse_frontmatter
 from soma_core.workspace import Workspace
 
 

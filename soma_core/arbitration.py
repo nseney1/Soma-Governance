@@ -451,17 +451,9 @@ def soma_propose_change(
 
 def _parse_cell(filepath: str) -> Tuple[Dict[str, Any], str]:
     """Parse cell frontmatter and body."""
-    try:
-        from soma_core.lifecycle import parse_cell as _core_parse
-        fm, body = _core_parse(filepath)
-        return (fm or {}, body)
-    except Exception:
-        from soma_core.frontmatter import parse_frontmatter, _get_body
-        with open(filepath, "r", encoding="utf-8") as f:
-            content = f.read()
-        fm = parse_frontmatter(content) or {}
-        body = _get_body(content)
-        return fm, body
+    from soma_core.lifecycle import parse_cell as _core_parse
+    fm, body = _core_parse(filepath)
+    return (fm or {}, body)
 
 
 def _load_fitness_evidence(workspace: Workspace | Path | str) -> Dict[str, Any]:

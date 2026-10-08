@@ -28,10 +28,10 @@ tags:
 fitness:
   score: null
   impact_weight: 1.0
-  triggers: 25
-  true_positives: 5.0456
-  false_positives: 6.8833
-  last_trigger_date: "2026-10-08T06:04:18Z"
+  triggers: 28
+  true_positives: 6.0456
+  false_positives: 8.8833
+  last_trigger_date: "2026-10-08T07:19:48Z"
 ---
 
 v0.84 origin: Bugs 1-5 were discovered and fixed across v0.81-v0.82 but had no

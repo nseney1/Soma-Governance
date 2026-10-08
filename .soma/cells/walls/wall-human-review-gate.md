@@ -8,7 +8,7 @@ prediction: "Enforcing deterministic interception of 'gh pr merge' and direct gi
 falsification: Agents reliably stop at prose human review gates without programmatic enforcement.
 target_paths:
   - soma_core/command_safety.py
-  - soma_cli/hooks.py
+  - soma_cli/hooks/**
   - docs/project/RELEASE_WORKFLOW.md
   - genome/gitflow-review-gate.md
 expiry_sessions: 100

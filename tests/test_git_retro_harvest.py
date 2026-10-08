@@ -17,7 +17,7 @@ import subprocess
 
 import pytest
 
-from soma_core.frontmatter import dump_frontmatter
+from soma_core.somayaml import dump_frontmatter
 
 
 def _init_git_repo(ws: Path) -> None:

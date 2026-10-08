@@ -8,7 +8,7 @@ import sys
 import time
 
 import pytest
-from soma_core.frontmatter import dump_frontmatter
+from soma_core.somayaml import dump_frontmatter
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if REPO_ROOT not in sys.path:

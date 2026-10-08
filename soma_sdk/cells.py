@@ -15,7 +15,7 @@ yaml = None  # Backward-compatible sentinel: zero-dependency runtime
 
 
 def _stdlib_parse_frontmatter(yaml_text: str) -> dict:
-    from soma_core.frontmatter import parse_yaml_subset, FrontmatterError
+    from soma_core.somayaml import parse_yaml_subset, FrontmatterError
     try:
         res = parse_yaml_subset(yaml_text)
         if not isinstance(res, dict):
@@ -23,6 +23,16 @@ def _stdlib_parse_frontmatter(yaml_text: str) -> dict:
         return res
     except FrontmatterError as e:
         raise CellParseError(f"Invalid YAML frontmatter: {e}") from e
+
+
+__all__ = [
+    "Cell",
+    "CellFitness",
+    "parse_cell_file",
+    "save_cell_file",
+    "load_cell",
+    "dump_cell",
+]
 
 
 
@@ -176,7 +186,7 @@ def parse_cell_file(filepath: str) -> Tuple[dict, str]:
     if not os.path.isfile(filepath):
         raise CellNotFoundError(f"Cell file not found: {filepath}")
 
-    from soma_core.frontmatter import parse_cell_frontmatter
+    from soma_core.somayaml import parse_cell_frontmatter
     try:
         return parse_cell_frontmatter(filepath)
     except ValueError as exc:
@@ -195,7 +205,7 @@ def write_cell_frontmatter(
         frontmatter: Dict to serialize as YAML frontmatter.
         body: Markdown body text.
     """
-    from soma_core.frontmatter import dump_frontmatter
+    from soma_core.somayaml import dump_frontmatter
     yaml_text = dump_frontmatter(frontmatter)
 
     content = f"---\n{yaml_text.strip()}\n---\n"

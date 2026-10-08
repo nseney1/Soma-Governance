@@ -14,7 +14,7 @@ import shutil
 import sys
 from typing import Any
 
-from soma_core.frontmatter import parse_frontmatter
+from soma_core.somayaml import parse_frontmatter
 
 UNIVERSAL_TENETS = frozenset({
     "providence",

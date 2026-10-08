@@ -7,7 +7,7 @@ import os
 import sys
 import textwrap
 import pytest
-from soma_core.frontmatter import dump_frontmatter
+from soma_core.somayaml import dump_frontmatter
 
 # Imports from soma_core.enforcement
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

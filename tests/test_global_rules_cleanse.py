@@ -18,7 +18,7 @@ from soma_cli.clean_rules import (
     clean_global_rules,
     run_clean_rules,
 )
-from soma_core.frontmatter import dump_frontmatter
+from soma_core.somayaml import dump_frontmatter
 
 
 @pytest.fixture

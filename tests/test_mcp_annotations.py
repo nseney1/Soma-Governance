@@ -31,6 +31,7 @@ _EXPECTED = {
     "soma_create_rule": (False, False, True, False),
     "soma_list_rules": (True, False, True, False),
     "soma_rule_fitness": (True, False, True, False),
+    "soma_handoff": (False, False, False, False),
 }
 
 

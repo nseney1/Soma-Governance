@@ -23,7 +23,7 @@ from soma_core.outcomes import (
     extract_modified_files,
     match_cells,
 )
-from soma_core.frontmatter import dump_frontmatter, parse_frontmatter
+from soma_core.somayaml import dump_frontmatter, parse_frontmatter
 
 
 def test_detect_test_runner_package_json(tmp_path: Path) -> None:

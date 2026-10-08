@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional, Tuple
 
-from soma_core.frontmatter import parse_frontmatter
+from soma_core.somayaml import parse_frontmatter
 from soma_core.storage import atomic_write_text
 
 QUARANTINE_DIR = "quarantine"

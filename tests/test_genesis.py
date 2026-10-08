@@ -15,7 +15,7 @@ from argparse import Namespace
 from pathlib import Path
 
 import pytest
-from soma_core.frontmatter import parse_frontmatter
+from soma_core.somayaml import parse_frontmatter
 
 from soma_cli.genesis_scanner import (
     CellCandidate,

@@ -54,7 +54,7 @@ def test_run_push_member_id_traversal_rejected(tmp_path):
 def test_sync_sentinel_exports(tmp_path):
     from pathlib import Path
     from soma_core.sync import set_review_mode, write_frontmatter, resolve_home
-    from soma_core.frontmatter import parse_frontmatter
+    from soma_core.somayaml import parse_frontmatter
     # Test set_review_mode
     conf = tmp_path / "steering.conf"
     conf.write_text("REVIEW_MODE=breeze\nOTHER=true\n", encoding="utf-8")

@@ -16,7 +16,7 @@ from typing import Any, Dict, List, Optional
 
 from soma_core.workspace import resolve_workspace
 from soma_core.defects import find_covering_cells, load_cells
-from soma_core.frontmatter import parse_frontmatter, parse_yaml_subset, dump_frontmatter
+from soma_core.somayaml import parse_frontmatter, parse_yaml_subset, dump_frontmatter
 from soma_core.evidence import aggregate_signals
 
 

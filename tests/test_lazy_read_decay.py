@@ -17,7 +17,7 @@ from unittest.mock import patch
 
 import pytest
 
-from soma_core.frontmatter import dump_frontmatter
+from soma_core.somayaml import dump_frontmatter
 
 
 def _create_cell(workspace: Path, cell_id: str, last_trigger_date: str | None = None) -> Path:

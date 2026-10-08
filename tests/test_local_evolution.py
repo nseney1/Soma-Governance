@@ -12,7 +12,7 @@ import os
 from pathlib import Path
 import pytest
 
-from soma_core.frontmatter import dump_frontmatter, parse_frontmatter
+from soma_core.somayaml import dump_frontmatter, parse_frontmatter
 from soma_core.lifecycle.constants import (
     GLOBAL_PROMOTION_PATH,
     LOCAL_PROMOTION_PATH,

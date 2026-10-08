@@ -21,7 +21,7 @@ import sys
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 from soma_core.workspace import Workspace, resolve_workspace
-from soma_core.frontmatter import parse_frontmatter, _get_body, dump_frontmatter
+from soma_core.somayaml import parse_frontmatter, _get_body, dump_frontmatter
 
 # ── Hot Zone Analysis ──────────────────────────────────────────────────────
 

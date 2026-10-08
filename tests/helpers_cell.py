@@ -9,7 +9,15 @@ import os
 from datetime import datetime, timedelta
 
 import pytest
-from soma_core.frontmatter import dump_frontmatter
+from soma_core.somayaml import dump_frontmatter
+
+__all__ = [
+    "make_cell",
+    "write_cell_with_fitness",
+    "make_cell_dict",
+    "soma_workspace",
+    "write_evidence",
+]
 
 
 def make_cell(cells_dir, name, cell_type="vacuole", created_days_ago=10,

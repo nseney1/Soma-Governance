@@ -10,7 +10,7 @@ import json
 from datetime import date
 from pathlib import Path
 
-from soma_core.frontmatter import dump_frontmatter
+from soma_core.somayaml import dump_frontmatter
 
 from soma_cli.genesis_scanner import CellCandidate
 

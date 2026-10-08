@@ -102,7 +102,7 @@ def test_optional_deps_not_in_required():
 
 def _collect_target_paths_from_rules():
     """Collect target_paths values from all cell frontmatter."""
-    from soma_core.frontmatter import parse_frontmatter
+    from soma_core.somayaml import parse_frontmatter
     results = []
     cells_dir = REPO_ROOT / ".soma" / "cells"
     if not cells_dir.exists():
@@ -204,7 +204,7 @@ def test_parsers_agree_on_id_and_domain():
 
 def _collect_glob_paths_from_cells():
     """Collect glob target_paths from all cell frontmatter."""
-    from soma_core.frontmatter import parse_frontmatter
+    from soma_core.somayaml import parse_frontmatter
     results = []
     cells_dir = REPO_ROOT / ".soma" / "cells"
     if not cells_dir.exists():

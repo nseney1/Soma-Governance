@@ -17,7 +17,7 @@ import subprocess
 import sys
 from typing import Any
 
-from soma_core.frontmatter import parse_frontmatter, _get_body, dump_frontmatter
+from soma_core.somayaml import parse_frontmatter, _get_body, dump_frontmatter
 
 
 # ── Liveness Sentinel ──────────────────────────────────────────────────────

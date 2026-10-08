@@ -15,7 +15,7 @@ from soma_core.sentinels import (
     write_frontmatter,
     recommend_protocol,
 )
-from soma_core.frontmatter import parse_frontmatter
+from soma_core.somayaml import parse_frontmatter
 
 
 def test_check_liveness_healthy_and_stalled() -> None:

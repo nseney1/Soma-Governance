@@ -17,7 +17,7 @@ import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
 
-from soma_core.frontmatter import dump_frontmatter, parse_frontmatter, _get_body
+from soma_core.somayaml import dump_frontmatter, parse_frontmatter, _get_body
 from soma_core.telemetry import append_signals
 from soma_core.workspace import Workspace, as_workspace
 from soma_core.verification import (

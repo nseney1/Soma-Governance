@@ -9,7 +9,7 @@ import uuid
 from pathlib import Path
 from typing import Any, Mapping
 
-from soma_core.frontmatter import dump_frontmatter, parse_cell_frontmatter
+from soma_core.somayaml import dump_frontmatter, parse_cell_frontmatter
 
 
 CELL_TYPE_DIRS = {

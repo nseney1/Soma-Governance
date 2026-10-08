@@ -55,15 +55,21 @@ def _script_groups():
 
 
 def _tool_definition_names(path):
-    tree = ast.parse(read(str(path)))
-    for node in tree.body:
-        if not isinstance(node, ast.Assign):
+    targets = [path]
+    if path.name == "tools.py":
+        targets.insert(0, path.parent / "registry.py")
+    for p in targets:
+        if not p.exists():
             continue
-        if not any(isinstance(target, ast.Name) and target.id == "TOOL_DEFINITIONS"
-                   for target in node.targets):
-            continue
-        definitions = ast.literal_eval(node.value)
-        return {definition["name"] for definition in definitions}
+        tree = ast.parse(read(str(p)))
+        for node in tree.body:
+            if not isinstance(node, ast.Assign):
+                continue
+            if not any(isinstance(target, ast.Name) and target.id == "TOOL_DEFINITIONS"
+                       for target in node.targets):
+                continue
+            definitions = ast.literal_eval(node.value)
+            return {definition["name"] for definition in definitions}
     raise AssertionError("TOOL_DEFINITIONS not found")
 
 
@@ -73,7 +79,7 @@ def test_readme_mcp_tool_inventory_matches_code():
     documented = set(re.findall(r"`(soma_[a-z_]+)`", section))
     expected = _tool_definition_names(ROOT / "soma_mcp" / "tools.py")
     assert documented == expected
-    assert len(expected) == 19
+    assert len(expected) == 20
 
 
 def test_readme_mcp_tiers_match_server_definitions():
@@ -86,7 +92,7 @@ def test_readme_mcp_tiers_match_server_definitions():
     }
     documented = {label: _readme_mcp_row(readme, label) for label in expected}
     assert documented == expected
-    assert len(set().union(*documented.values())) == 19
+    assert len(set().union(*documented.values())) == 20
 
 
 def test_documentation_index_local_links_exist():

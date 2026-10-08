@@ -4,7 +4,7 @@
 [![Core Rules](https://img.shields.io/badge/Core_Rules-19-green?style=flat-square)](#-core-rules)
 [![Agent Skills](https://img.shields.io/badge/Agent_Skills-15-purple?style=flat-square)](#-agent-skills)
 [![Architecture](https://img.shields.io/badge/Architecture-Pure_Python-blue?style=flat-square)](#-architecture)
-[![Version](https://img.shields.io/badge/Version-0.121.1-informational?style=flat-square)](docs/project/CHANGELOG.md)
+[![Version](https://img.shields.io/badge/Version-0.122.0-informational?style=flat-square)](docs/project/CHANGELOG.md)
 [![Zero Runtime Dependencies](https://img.shields.io/badge/Dependencies-0-brightgreen?style=flat-square)](#)
 [![Blog Post](https://img.shields.io/badge/Blog-dev.to-black?style=flat-square&logo=devdotto)](https://dev.to/nseney1/your-ai-agents-rules-file-is-a-gentlemans-agreement-heres-what-happens-when-you-build-2dml)
 [![M8ven Score](https://m8ven.ai/badge/mcp/nseney1-soma-governance-yv4xbk)](https://m8ven.ai/mcp/nseney1/soma-governance?s=readme)
@@ -122,12 +122,12 @@ Add Soma as an MCP server in your AI agent's config. Set `SOMA_WORKSPACE` to the
 
 Works with Gemini Antigravity, Claude Code, Cursor, and any MCP-compatible agent.
 
-**Capabilities:** With `SOMA_EXECUTION_ENABLED` omitted, the server exposes eleven read tools and four write tools. Write tools are discoverable but require a receipt. Setting `SOMA_EXECUTION_ENABLED=1` additionally exposes four execute tools, which also require receipts.
+**Capabilities:** With `SOMA_EXECUTION_ENABLED` omitted, the server exposes eleven read tools and five write tools. Write tools are discoverable but require a receipt. Setting `SOMA_EXECUTION_ENABLED=1` additionally exposes four execute tools, which also require receipts.
 
 | Tier | Available tools |
 |:-----|:----------------|
 | Read (default) | `soma_request_receipt`, `soma_scan`, `soma_list_cells`, `soma_grade`, `soma_coverage`, `soma_fitness`, `soma_audit_security`, `soma_audit_performance`, `soma_poll_verification`, `soma_list_rules`, `soma_rule_fitness` |
-| Write (default; receipt required) | `soma_report_outcome`, `soma_capture_insight`, `soma_create_cell`, `soma_create_rule` |
+| Write (default; receipt required) | `soma_report_outcome`, `soma_capture_insight`, `soma_create_cell`, `soma_create_rule`, `soma_handoff` |
 | Execute (opt-in; receipt required) | `soma_propose_change`, `soma_verify_changes`, `soma_checkpoint`, `soma_generate_manifest` |
 
 **Receipt flow for write and execute tools:**

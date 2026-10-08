@@ -8,7 +8,7 @@ from pathlib import Path
 import time
 from typing import Any, Dict, Optional
 
-from soma_core.frontmatter import parse_frontmatter
+from soma_core.somayaml import parse_frontmatter
 from soma_core.scoring import bayesian_posterior, bayesian_score, calculate_snr, laplace_score
 from soma_core.workspace import Workspace, resolve_workspace
 from .constants import (
@@ -16,6 +16,17 @@ from .constants import (
     DEFAULT_DECAY_FACTOR,
 )
 from .quorum import calculate_fitness_status
+
+__all__ = [
+    "apply_decay",
+    "apply_exponential_decay",
+    "bayesian_fitness",
+    "compute_cells_fitness",
+    "decayed_fitness",
+    "format_snr",
+    "normalize_fitness",
+    "antifragile_bonus",
+]
 
 
 def apply_exponential_decay(

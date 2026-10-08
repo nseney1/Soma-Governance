@@ -110,3 +110,20 @@ def test_symlinked_directory_that_would_feed_jit_is_rejected(tmp_path):
             express(str(tmp_path / "workspace"), changed_files=["src/app.py"])
     finally:
         jit_engine._cell_cache = previous
+
+
+def test_find_matching_cells(tmp_path):
+    from soma_core.cell_inventory import find_matching_cells
+    cells_dir = tmp_path / ".soma" / "cells"
+    _write_cell(cells_dir / "walls" / "test_wall.md", "test-wall")
+
+    matches = find_matching_cells(cells_dir, ["src/index.py"])
+    assert len(matches) == 1
+    assert matches[0].cell_id == "test-wall"
+
+    # Non-matching path
+    assert find_matching_cells(cells_dir, ["other/file.txt"]) == []
+
+    # Non-existent dir or empty files
+    assert find_matching_cells(tmp_path / "nonexistent", ["src/index.py"]) == []
+    assert find_matching_cells(cells_dir, []) == []

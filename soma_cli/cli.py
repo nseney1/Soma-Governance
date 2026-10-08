@@ -297,6 +297,22 @@ def _build_parser() -> argparse.ArgumentParser:
     p_insight.add_argument("--wall-id", type=str, default=None, help="Explicit ID for the scaffolded Wall cell")
     p_insight.add_argument("--source-conversation", type=str, default=None, help="Source conversation identifier")
 
+    # soma skill
+    p_skill = sub.add_parser("skill", parents=[common_parser], help="Manage and inspect horizontal skills and slots")
+    p_skill_sub = p_skill.add_subparsers(dest="skill_action", help="Skill command")
+    p_skill_list = p_skill_sub.add_parser("list", parents=[common_parser], help="List discovered skills")
+    p_skill_inspect = p_skill_sub.add_parser("inspect", parents=[common_parser], help="Inspect skill details")
+    p_skill_inspect.add_argument("target_skill", type=str, help="Target skill ID")
+    p_skill_slots = p_skill_sub.add_parser("slots", parents=[common_parser], help="View slot definitions")
+
+    # soma handoff
+    p_handoff = sub.add_parser("handoff", parents=[common_parser], help="Execute file-buffered swarm handoff between skills")
+    p_handoff.add_argument("--from", "-f", dest="from_skill", required=True, type=str, help="Origin skill ID")
+    p_handoff.add_argument("--to", "-t", dest="to_skill", required=True, type=str, help="Target skill ID")
+    p_handoff.add_argument("--artifact", "-a", required=True, type=str, help="Artifact type (e.g. ChargeSheet, DiffProposal)")
+    p_handoff.add_argument("--payload", "-p", type=str, default="{}", help="Artifact payload JSON or file path")
+    p_handoff.add_argument("--cycle-id", type=str, default=None, help="Optional arbitration cycle ID")
+
     return parser
 
 
@@ -493,6 +509,18 @@ def cmd_capture_insight(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_skill(args: argparse.Namespace) -> int:
+    """Manage and inspect horizontal skills."""
+    from soma_cli.skills import run_skill
+    return run_skill(args)
+
+
+def cmd_handoff(args: argparse.Namespace) -> int:
+    """Execute swarm handoff between skills."""
+    from soma_cli.skills import run_handoff
+    return run_handoff(args)
+
+
 COMMANDS = {
     "init": cmd_init,
     "status": cmd_status,
@@ -519,6 +547,8 @@ COMMANDS = {
     "uninstall": cmd_uninstall,
     "clean-global-rules": cmd_clean_global_rules,
     "capture-insight": cmd_capture_insight,
+    "skill": cmd_skill,
+    "handoff": cmd_handoff,
 }
 
 

@@ -12,7 +12,7 @@ import tempfile
 import textwrap
 
 import pytest
-from soma_core.frontmatter import dump_frontmatter, parse_yaml_subset
+from soma_core.somayaml import dump_frontmatter, parse_yaml_subset
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, REPO_ROOT)

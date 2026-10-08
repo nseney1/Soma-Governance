@@ -23,7 +23,7 @@ import sys
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 from soma_core.workspace import Workspace, as_workspace, resolve_workspace
-from soma_core.frontmatter import parse_frontmatter, _get_body, dump_frontmatter
+from soma_core.somayaml import parse_frontmatter, _get_body, dump_frontmatter
 
 
 # ── Sentinels & Protocol Escalation Re-exports ─────────────────────────────

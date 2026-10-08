@@ -9,7 +9,7 @@ import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from soma_core.frontmatter import dump_frontmatter
+from soma_core.somayaml import dump_frontmatter
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]

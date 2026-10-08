@@ -8,7 +8,7 @@ prediction: Enforcing strict boundaries on this file prevents unauthorized circu
   of safety checks.
 falsification: The script is entirely benign and requires no protection.
 target_paths:
-- soma_cli/hooks.py
+- soma_cli/hooks/**
 expiry_sessions: 100
 impact_weight: 1.0
 minimum_mode: maelstrom

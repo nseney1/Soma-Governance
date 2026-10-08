@@ -10,7 +10,7 @@ from pathlib import Path
 import sys
 from typing import Any, Dict, Optional
 
-from soma_core.frontmatter import dump_frontmatter, parse_frontmatter
+from soma_core.somayaml import dump_frontmatter, parse_frontmatter
 from soma_core.locking import workspace_lock
 from soma_core.workspace import Workspace, resolve_workspace
 from .constants import (

@@ -9,7 +9,7 @@ from pathlib import Path
 import sys
 from typing import Optional
 
-from soma_core.frontmatter import dump_frontmatter, parse_frontmatter
+from soma_core.somayaml import dump_frontmatter, parse_frontmatter
 from soma_core.workspace import Workspace, resolve_workspace
 from .constants import (
     VALID_ENFORCEMENT,
@@ -19,6 +19,13 @@ from .parsers import (
     generate_slug,
     validate_cell_id,
 )
+
+__all__ = [
+    "create_cell",
+    "create_cell_from_description",
+    "cli_cell_create",
+    "transfer_cell",
+]
 
 
 def create_cell(
