@@ -34,7 +34,7 @@ def _sanitize_charge_field(val: str, field_name: str) -> str:
     return s.strip()
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class ChargeSheet:
     """Structured architectural or invariant charge emitted by review guardrails."""
 
@@ -80,7 +80,7 @@ class ChargeSheet:
         }
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class InspectionReceipt:
     """Deterministic audit/inspection report."""
 
@@ -116,7 +116,7 @@ class InspectionReceipt:
         }
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class DiffProposal:
     """Disjoint lane implementation change proposal."""
 
@@ -145,7 +145,7 @@ class DiffProposal:
         }
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class TestVerdict:
     """Structured test suite execution report."""
 
@@ -239,7 +239,7 @@ class ArtifactRegistry:
 
 # ── Cryptographically Bound Envelope ─────────────────────────────────────────
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class ArtifactEnvelope:
     """Immutable cryptographically signed artifact envelope."""
 

@@ -12,7 +12,7 @@ from soma_core.somayaml import SomaDocument, SomaYAML
 __all__ = ["SkillNode", "SkillGraph"]
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class SkillNode:
     """Immutable skill graph node representing a deterministic agent organ/capability."""
 

@@ -19,7 +19,7 @@ from soma_core.workspace import Workspace, as_workspace
 __all__ = ["HandoffTicket", "HandoffRouter", "soma_handoff"]
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class HandoffTicket:
     """Ultra-compact ticket delivered to recipient agent (< 150 tokens)."""
 
