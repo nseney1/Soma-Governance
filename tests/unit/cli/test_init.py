@@ -329,7 +329,7 @@ class TestConfirmation:
         monkeypatch.setattr("builtins.input", lambda _: "n")
         args = argparse.Namespace(
             dry_run=False, platform="gemini", yes=False, force=False,
-            _project_root=tmp_path,
+            _project_root=tmp_path, _home=tmp_path,
         )
         result = run_init(args)
         assert result == 0
@@ -341,7 +341,7 @@ class TestConfirmation:
         (tmp_path / ".gemini").mkdir()
         args = argparse.Namespace(
             dry_run=False, platform="gemini", yes=True, force=False,
-            _project_root=tmp_path,
+            _project_root=tmp_path, _home=tmp_path,
         )
         result = run_init(args)
         assert result == 0
@@ -363,7 +363,7 @@ class TestPolyglotInit:
 
         args = argparse.Namespace(
             dry_run=False, platform="gemini", yes=True, force=True,
-            _project_root=tmp_path, mcp=False, rules="minimal",
+            _project_root=tmp_path, _home=tmp_path, mcp=False, rules="minimal",
         )
         result = run_init(args)
         assert result == 0
@@ -386,7 +386,7 @@ class TestPolyglotInit:
 
         args = argparse.Namespace(
             dry_run=True, platform="gemini", yes=True, force=True,
-            _project_root=tmp_path, mcp=False, rules="minimal",
+            _project_root=tmp_path, _home=tmp_path, mcp=False, rules="minimal",
         )
         result = run_init(args)
         assert result == 0
@@ -402,7 +402,7 @@ class TestPolyglotInit:
 
         args = argparse.Namespace(
             dry_run=False, platform="gemini", yes=True, force=True,
-            _project_root=tmp_path, mcp=False, rules="minimal",
+            _project_root=tmp_path, _home=tmp_path, mcp=False, rules="minimal",
         )
         result = run_init(args)
         assert result == 0
@@ -429,5 +429,37 @@ class TestPolyglotInit:
         with patch("soma_cli.init.run_init", return_value=0) as mock_run:
             assert cmd.execute(parsed) == 0
             mock_run.assert_called_once_with(parsed)
+
+    def test_init_claude_uses_home_directory_not_project_root(self, tmp_path, monkeypatch):
+        """BUG-089 (#143): soma init --platform claude must install to ~/.claude, not <project>/.claude."""
+        from soma_cli.init import run_init
+        from soma_core.workspace import Workspace
+
+        project_dir = tmp_path / "project"
+        project_dir.mkdir()
+        home_dir = tmp_path / "home"
+        home_dir.mkdir()
+
+        monkeypatch.setenv("HOME", str(home_dir))
+        monkeypatch.setattr("pathlib.Path.home", lambda: home_dir)
+
+        args = argparse.Namespace(
+            project=str(project_dir),
+            _project_root=project_dir,
+            ws=Workspace.for_init(project_dir),
+            platform="claude",
+            rules="minimal",
+            mcp=False,
+            yes=True,
+            force=True,
+            dry_run=False,
+        )
+
+        rc = run_init(args)
+        assert rc == 0
+        assert not (project_dir / ".claude").exists(), "Claude rules were incorrectly installed into <project>/.claude!"
+        assert (home_dir / ".claude").is_dir(), "Claude rules were not installed to ~/.claude!"
+        assert (home_dir / ".claude" / "CLAUDE.md").is_file()
+
 
 

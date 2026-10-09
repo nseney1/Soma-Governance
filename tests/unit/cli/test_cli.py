@@ -275,6 +275,7 @@ class TestInitIntegration:
         parser = _build_parser()
         args = parser.parse_args(argv)
         args._project_root = tmp_path
+        args._home = tmp_path
 
         rc = run_init(args)
         assert rc == 0

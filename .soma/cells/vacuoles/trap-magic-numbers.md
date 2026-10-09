@@ -17,11 +17,11 @@ tags:
   - configuration
 created: 2026-09-28
 fitness:
-  triggers: 38
-  true_positives: 11.4586
-  false_positives: 17.5289
+  triggers: 43
+  true_positives: 13.6622
+  false_positives: 18.7325
   score: 0.25
-  last_trigger_date: "2026-10-08T09:12:32Z"
+  last_trigger_date: "2026-10-09T04:28:57Z"
 ---
 
 # Trap: Magic Numbers

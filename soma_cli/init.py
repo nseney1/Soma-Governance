@@ -415,8 +415,7 @@ def run_init(args: argparse.Namespace) -> int:
 
     # 4. Resolve target directory
     try:
-        # Use project_root as home override for testing
-        home = getattr(args, "_project_root", None)
+        home = getattr(args, "_home", getattr(args, "_home_override", None))
         rules_dir = get_rules_dir(platform, home=home, project_root=project_root)
     except ValueError as e:
         print(f"  ❌ {e}")

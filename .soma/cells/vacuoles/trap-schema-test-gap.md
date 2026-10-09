@@ -27,10 +27,10 @@ tags:
 fitness:
   score: 0.5
   impact_weight: 0.9
-  triggers: 36
-  true_positives: 14
-  false_positives: 19.25
-  last_trigger_date: "2026-10-08T09:12:32Z"
+  triggers: 40
+  true_positives: 17
+  false_positives: 20.25
+  last_trigger_date: "2026-10-09T04:28:57Z"
 ---
 
 Every cell subdirectory under `.soma/cells/` (vacuoles, walls, membranes,

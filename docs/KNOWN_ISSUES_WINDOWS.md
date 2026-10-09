@@ -1,6 +1,6 @@
-# Known Issues — Windows (v1.3.0)
+# Known Issues — Windows (v1.4.0)
 
-Open Windows issues as of v1.3.0 were observed on Windows 11 with Windows PowerShell 5.1, Git Bash, and Python 3.14. Each open issue is tracked in [`BUG_REGISTRY.json`](project/BUG_REGISTRY.json) with `"status": "open"`.
+Open Windows issues as of v1.4.0 were observed on Windows 11 with Windows PowerShell 5.1, Git Bash, and Python 3.14. Each open issue is tracked in [`BUG_REGISTRY.json`](project/BUG_REGISTRY.json) with `"status": "open"`.
 
 > **⚠ On v0.89.0, don't run the full test suite on a Windows machine you care about (BUG-010).** It can write to the real home directory. That includes `tests/test_install_lifecycle.py`, which `enzymes/verify_readme_claims.py` may invoke. Fixed after v0.89.0; see below.
 
@@ -22,8 +22,8 @@ CI now runs the full pytest suite on Windows (`test-windows` in `.github/workflo
 | `soma_list_cells` / `Governance.list_cells` | Fixed in v0.89.0 (explicit UTF-8 inventory) | BUG-012 |
 | Enzyme scripts on a cp1252 stdout | Fixed in v0.90.0 | BUG-038 |
 | Windows-only tests | Fixed after v0.89.0 | BUG-013 |
-| Rust AST driver / `soma doctor --fix` with a python.org install | Fixed after v1.3.0 (`python3` falls back to the running interpreter) | BUG-086 |
-| Symlink tests without Developer Mode | Fixed after v1.3.0 (skip instead of WinError 1314) | BUG-087 |
+| Rust AST driver / `soma doctor --fix` with a python.org install | Fixed in v1.4.0 (`python3` falls back to the running interpreter) | BUG-086 |
+| Symlink tests without Developer Mode | Fixed in v1.4.0 (skip instead of WinError 1314) | BUG-087 |
 
 ## MCP server does not start: `python3` is the Windows Store stub
 
@@ -33,7 +33,7 @@ Fix for the stub: **Settings > Apps > Advanced app settings > App execution alia
 
 `soma doctor --fix-path` does not edit PowerShell profiles; on Windows it prints the `[Environment]::SetEnvironmentVariable(...)` command for the user `Path` instead. Under Git Bash (`SHELL` set to bash) it edits `~/.bashrc` like on Linux, and `install/uninstall.ps1` removes that line again from the home manifest's `path_lines`, keeping a UTF-8 BOM and the line endings. `uninstall.ps1` refuses to rewrite an rc file that is a symlink (warns instead); `uninstall.sh` follows a symlink whose target stays inside your home directory.
 
-## Fixed after v1.3.0
+## Fixed in v1.4.0
 
 ### BUG-086: Rust AST driver failed without `python3.exe` ([#144](https://github.com/nseney1/Soma-Governance/issues/144))
 The Rust driver slot is provisioned as `python3 .soma/drivers/rust_ast.py`, but a python.org install ships `python.exe` and no `python3.exe`. The Rust call graph therefore failed with WinError 2, and `soma doctor --fix` provisioned the slot and then reported `executable 'python3' not found on PATH`. The runner and doctor now use the interpreter running Soma when a bare `python3`/`python` isn't on `PATH`. `slots.yaml` still says `python3`.

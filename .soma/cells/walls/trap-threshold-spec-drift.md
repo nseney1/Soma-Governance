@@ -25,10 +25,10 @@ tags:
 fitness:
   score: 0.75
   impact_weight: 1.0
-  triggers: 41
-  true_positives: 10.6929
-  false_positives: 9.7479
-  last_trigger_date: "2026-10-08T09:12:32Z"
+  triggers: 46
+  true_positives: 11.1962
+  false_positives: 10.0183
+  last_trigger_date: "2026-10-09T04:28:57Z"
 ---
 
 Supercell C3 incident: `lifecycle.py` docstring said `tp_rate > 0.85` and

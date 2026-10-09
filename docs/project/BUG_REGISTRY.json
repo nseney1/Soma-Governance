@@ -1519,7 +1519,7 @@
       "status": "fixed",
       "title": "Windows: Rust AST driver slot hard-codes python3, so doctor --fix and the Rust call graph fail on python.org installs",
       "discovered_in": "v1.3.0",
-      "fixed_in": "Unreleased",
+      "fixed_in": "v1.4.0",
       "root_cause": "platform_compat",
       "severity": "moderate",
       "description": "soma_core/ast/detect.py provisions the Rust driver slot as `python3 .soma/drivers/rust_ast.py`. A python.org install on Windows ships python.exe but no python3.exe, so ASTDriverRunner failed with WinError 2, the Rust call graph raised ASTDriverError, and `soma doctor --fix` provisioned the slot and reported it broken in the same run. CI's windows-latest image resolves python3, so CI stayed green. The runner and doctor now resolve a bare python3/python that is not on PATH to sys.executable; slots.yaml keeps the portable name.",
@@ -1529,7 +1529,7 @@
       ],
       "regression_test": "tests/unit/core/test_ast_driver_runner.py::test_python_driver_runs_when_interpreter_name_is_not_on_path",
       "pattern": "Interpreter name hard-coded in a generated command instead of resolved at run time",
-      "changelog_ref": "Unreleased"
+      "changelog_ref": "v1.4.0"
     },
     {
       "id": "BUG-087",
@@ -1537,7 +1537,7 @@
       "status": "fixed",
       "title": "Async storage test never ran on CI, and two symlink tests errored on Windows without symlink privilege",
       "discovered_in": "v1.3.0",
-      "fixed_in": "Unreleased",
+      "fixed_in": "v1.4.0",
       "root_cause": "silent_failure",
       "severity": "low",
       "description": "tests/unit/core/test_storage.py::test_async_atomic_write_text is marked @pytest.mark.anyio, but anyio was in neither the [dev] extras nor CI's pinned test dependencies. On CI (pytest 8.3.4) the test was skipped with PytestUnhandledCoroutineWarning on every OS, so it never ran; under pytest 9 (an unpinned [dev] install) it failed. Separately, test_somayaml.py and test_workspace_uninitialized.py called symlink_to() directly, so on Windows without Developer Mode or admin rights they raised WinError 1314 instead of skipping. anyio is now a dev and CI dependency, the 'async def functions are not natively supported' warning is an error, and both tests use conftest.symlink_or_skip.",
@@ -1549,7 +1549,41 @@
       ],
       "regression_test": "tests/unit/core/test_storage.py::test_async_atomic_write_text",
       "pattern": "Missing test plugin degrades to a silent skip instead of a failure",
-      "changelog_ref": "Unreleased"
+      "changelog_ref": "v1.4.0"
+    },
+    {
+      "id": "BUG-088",
+      "issue_url": "https://github.com/nseney1/Soma-Governance/issues/142",
+      "status": "fixed",
+      "title": "soma uninstall --platform claude deletes entire CLAUDE.md including user content and leaves MCP config",
+      "discovered_in": "v1.3.0",
+      "fixed_in": "v1.4.0",
+      "root_cause": "silent_failure",
+      "severity": "critical",
+      "description": "soma_cli/platforms/claude.py unconditionally unlinked CLAUDE.md upon uninstall, permanently destroying user-authored configuration and custom instructions. Additionally, uninstall left behind soma entries in .mcp.json. Fixed: ClaudeAdapter now delimits Soma sections with SOMA:START/END markers, strips only the Soma-governed block on uninstall, removes the entire file only if no user content remains, and cleans up soma from mcpServers in .mcp.json.",
+      "affected_files": [
+        "soma_cli/platforms/claude.py"
+      ],
+      "regression_test": "tests/unit/core/test_platform_adapters.py::test_claude_adapter_preserves_user_content_on_uninstall",
+      "pattern": "Adapter uninstall unlinks shared platform configuration file instead of excising injected section",
+      "changelog_ref": "v1.4.0"
+    },
+    {
+      "id": "BUG-089",
+      "issue_url": "https://github.com/nseney1/Soma-Governance/issues/143",
+      "status": "fixed",
+      "title": "soma init --platform claude installs rules into <project>/.claude instead of ~/.claude causing doctor and status failures",
+      "discovered_in": "v1.3.0",
+      "fixed_in": "v1.4.0",
+      "root_cause": "path_error",
+      "severity": "moderate",
+      "description": "soma_cli/init.py passed args._project_root as the home override to get_rules_dir(). Because soma_cli/cli.py assigns args._project_root = args.ws.root on every command, soma init treated the workspace as the user home, installing rules to <project>/.claude/ while doctor, status, and uninstall looked in ~/.claude/. Right after init, doctor reported no rules found and status reported 0 active rules. Fixed: soma_cli/init.py now resolves home via _home or _home_override, maintaining path parity with doctor, status, and uninstall.",
+      "affected_files": [
+        "soma_cli/init.py"
+      ],
+      "regression_test": "tests/unit/cli/test_init.py::TestPolyglotInit::test_init_claude_uses_home_directory_not_project_root",
+      "pattern": "Project root erroneously passed as home directory override during target path resolution",
+      "changelog_ref": "v1.4.0"
     }
   ]
 }
