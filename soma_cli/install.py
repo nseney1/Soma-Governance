@@ -32,14 +32,44 @@ def run_install(args: argparse.Namespace) -> int:
 
 def run_uninstall(args: argparse.Namespace) -> int:
     """Uninstall Soma rules and configuration for configured platform."""
+    from pathlib import Path
+    import shutil
+    from soma_cli.hooks import uninstall_hook
     from soma_cli.platforms import get_adapter
+
     platform = getattr(args, "platform", None) or "gemini"
     local = getattr(args, "local", False)
     dry_run = getattr(args, "dry_run", False)
+    purge = getattr(args, "purge", False)
     workspace = getattr(args, "_project_root", None)
+    ws_path = Path(workspace) if workspace else Path.cwd()
+
     try:
-        adapter = get_adapter(platform, workspace=workspace)
+        adapter = get_adapter(platform, workspace=ws_path)
         res = adapter.uninstall(local=local, dry_run=dry_run)
+
+        # 1. Clean pre-commit hook
+        try:
+            if uninstall_hook(project_root=ws_path, dry_run=dry_run):
+                action = "[dry-run] Would remove" if dry_run else "Removed"
+                res.messages.append(f"{action} pre-commit hook")
+        except Exception as e:
+            res.errors.append(f"Failed to remove pre-commit hook: {e}")
+
+        # 2. Clean .soma directory if --purge requested
+        if purge:
+            soma_dir = ws_path / ".soma"
+            if soma_dir.is_dir():
+                if dry_run:
+                    res.messages.append(f"[dry-run] Would remove {soma_dir}")
+                else:
+                    try:
+                        shutil.rmtree(soma_dir)
+                        res.messages.append(f"Purged {soma_dir}")
+                    except Exception as e:
+                        res.errors.append(f"Failed to purge {soma_dir}: {e}")
+                        res.success = False
+
         for msg in res.messages:
             print(msg)
         for err in res.errors:
@@ -104,6 +134,11 @@ class UninstallCommand(SomaCommand):
             "--dry-run",
             action="store_true",
             help="Show what would be uninstalled without deleting files",
+        )
+        parser.add_argument(
+            "--purge",
+            action="store_true",
+            help="Purge .soma directory and local governance state",
         )
 
     def execute(self, args: argparse.Namespace) -> int:

@@ -25,10 +25,10 @@ tags:
 fitness:
   score: 0.5714
   impact_weight: 1.0
-  triggers: 46
-  true_positives: 18.8988
-  false_positives: 22.2981
-  last_trigger_date: "2026-10-09T04:28:57Z"
+  triggers: 51
+  true_positives: 20.9488
+  false_positives: 24.142
+  last_trigger_date: "2026-10-09T13:40:49Z"
 ---
 
 Before creating new instances of a typed artifact (cells, config files, schema

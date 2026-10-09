@@ -8,6 +8,9 @@ from typing import Any
 from soma_cli.platforms.base import PlatformAdapter, PlatformInstallResult
 
 
+__all__ = ["McpAdapter"]
+
+
 class McpAdapter(PlatformAdapter):
     """Platform adapter managing .mcp.json server configuration."""
 
@@ -82,7 +85,8 @@ class McpAdapter(PlatformAdapter):
                     result.errors.append(f"Failed to update {target}: {exc}")
                     result.success = False
 
-        result.messages.append(f"Removed soma MCP server from {target}")
+        action = "[dry-run] Would remove" if dry_run else "Removed"
+        result.messages.append(f"{action} soma MCP server from {target}")
         return result
 
     def verify(self, local: bool = True) -> bool:

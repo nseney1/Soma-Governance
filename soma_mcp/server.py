@@ -497,6 +497,8 @@ def _handle_request_impl(request: Dict[str, Any]) -> Dict[str, Any]:
 
 def _on_session_close(workspace: Optional[str] = None) -> None:
     """Trigger background ACE outcome reflection upon session termination."""
+    if os.environ.get("SOMA_REFLECT_ON_CLOSE", "1") == "0":
+        return
     ws = workspace or _canonical_workspace
     if not ws:
         return
@@ -521,6 +523,7 @@ def run_stdio_server():
         return 1
         
     _execution_enabled = os.environ.get("SOMA_EXECUTION_ENABLED") == "1"
+    requests_processed = 0
 
     try:
         for line in sys.stdin:
@@ -537,6 +540,7 @@ def run_stdio_server():
                 if request.get("jsonrpc") != "2.0":
                     continue # ignore invalid
                     
+                requests_processed += 1
                 if "id" in request:
                     # It's a request
                     response = handle_request(request)

@@ -24,10 +24,10 @@ tags:
 fitness:
   score: 0.6
   impact_weight: 1.0
-  triggers: 44
-  true_positives: 15.6622
-  false_positives: 17.7325
-  last_trigger_date: "2026-10-09T04:28:57Z"
+  triggers: 49
+  true_positives: 17.5561
+  false_positives: 19.4203
+  last_trigger_date: "2026-10-09T13:40:49Z"
 ---
 
 Supercell C6 incident: `jit_engine.py` used

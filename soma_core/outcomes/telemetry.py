@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import re
 import secrets
+import shutil
 import subprocess
 import sys
 from typing import Any, Optional
@@ -35,6 +36,14 @@ def _run_verify(cmd: str, cwd: str, timeout: Optional[int] = None) -> Optional[d
         )
         stdout_tail = "\n".join(result.stdout.strip().split("\n")[-10:])
         stderr_tail = "\n".join(result.stderr.strip().split("\n")[-5:])
+        if result.returncode == 127:
+            return {
+                "exit_code": 127,
+                "passed": None,
+                "error": f"command not found: {cmd}",
+                "stdout_tail": stdout_tail[:500],
+                "stderr_tail": stderr_tail[:300],
+            }
         return {
             "exit_code": result.returncode,
             "passed": result.returncode == 0,
@@ -68,9 +77,9 @@ def detect_test_runner(workspace: str) -> tuple[Optional[str], Optional[str]]:
             if check_cmd is None or subprocess.run(check_cmd, shell=True, cwd=workspace, capture_output=True).returncode == 0:
                 return test_cmd, name
 
-    # Fallback to Makefile test target
+    # Fallback to Makefile test target (only if make binary is installed)
     makefile = os.path.join(workspace, "Makefile")
-    if os.path.exists(makefile):
+    if os.path.exists(makefile) and shutil.which("make") is not None:
         try:
             with open(makefile, "r", encoding="utf-8") as f:
                 if re.search(r"^test\s*:", f.read(), re.MULTILINE):

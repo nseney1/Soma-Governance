@@ -10,6 +10,9 @@ import shutil
 from typing import Any, Optional
 
 
+__all__ = ["PlatformAdapter", "PlatformInstallResult"]
+
+
 @dataclass
 class PlatformInstallResult:
     """Result of a platform installation or uninstallation operation."""
@@ -37,15 +40,24 @@ class PlatformAdapter(ABC):
         self.home = Path(home).resolve() if home else Path.home().resolve()
 
     def get_source_rules(self) -> list[Path]:
-        """Locate genome rules in repository workspace."""
+        """Locate genome rules in repository workspace or bundled starter_rules."""
         genome_dir = self.workspace / "genome"
-        if not genome_dir.is_dir():
-            return []
-        rules = [p for p in genome_dir.glob("*.md") if p.name not in {"META.md", "README.md"}]
-        oracles_dir = genome_dir / ".oracles"
-        if oracles_dir.is_dir():
-            rules.extend([p for p in oracles_dir.glob("*.md") if p.name not in {"META.md", "README.md"}])
-        return sorted(rules)
+        if genome_dir.is_dir():
+            rules = [p for p in genome_dir.glob("*.md") if p.name not in {"META.md", "README.md"}]
+            oracles_dir = genome_dir / ".oracles"
+            if oracles_dir.is_dir():
+                rules.extend([p for p in oracles_dir.glob("*.md") if p.name not in {"META.md", "README.md"}])
+            if rules:
+                return sorted(rules)
+        try:
+            import importlib.resources
+            pkg = importlib.resources.files("soma_cli") / "starter_rules"
+            pkg_path = Path(str(pkg))
+            if pkg_path.is_dir():
+                return sorted([p for p in pkg_path.glob("*.md") if p.name not in {"META.md", "README.md"}])
+        except Exception:
+            pass
+        return []
 
     def get_source_skills(self) -> list[Path]:
         """Locate organs/skills in repository workspace."""

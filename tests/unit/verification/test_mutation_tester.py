@@ -527,3 +527,60 @@ class TestPolyglotMutationTesterCoverage:
             assert ev.verdict is True
             assert "0/1 survived" in ev.detail
 
+    def test_mutation_tester_reports_diagnostic_baseline_reasons(self, tmp_path, monkeypatch):
+        """BUG-095: Mutation tester must report why baseline check failed."""
+        from soma_core.verification import mutation_tester
+        import subprocess
+
+        src = tmp_path / "target.py"
+        src.write_text("def inc(x):\n    return x + 1\n")
+        test = tmp_path / "test_target.py"
+        test.write_text("def test_inc():\n    assert inc(1) == 2\n")
+
+        # 1. Missing runner
+        with patch("soma_core.verification.test_runner.resolve_pytest_cmd", return_value=None):
+            ev = mutation_tester.check(str(src), "inc", str(test))
+            assert ev.verdict is False
+            assert "pytest executable could not be resolved" in ev.detail
+
+        # 2. Timeout
+        def mock_timeout(*a, **kw):
+            raise subprocess.TimeoutExpired("pytest", 30)
+
+        monkeypatch.setattr(subprocess, "run", mock_timeout)
+        with patch("soma_core.verification.test_runner.resolve_pytest_cmd", return_value=["pytest"]):
+            ev = mutation_tester.check(str(src), "inc", str(test))
+            assert ev.verdict is False
+            assert "timed out after 30s" in ev.detail
+
+        # 3. Failure exit code
+        def mock_fail(*a, **kw):
+            return subprocess.CompletedProcess(
+                args=["pytest"], returncode=1, stdout="", stderr="AssertionError: expected 2 got 3"
+            )
+
+        monkeypatch.setattr(subprocess, "run", mock_fail)
+        with patch("soma_core.verification.test_runner.resolve_pytest_cmd", return_value=["pytest"]):
+            ev = mutation_tester.check(str(src), "inc", str(test))
+            assert ev.verdict is False
+            assert "exit code 1" in ev.detail
+            assert "AssertionError" in ev.detail
+
+        # 4. Execution error (OSError)
+        def mock_err(*a, **kw):
+            raise OSError("disk read failure")
+
+        monkeypatch.setattr(subprocess, "run", mock_err)
+        with patch("soma_core.verification.test_runner.resolve_pytest_cmd", return_value=["pytest"]):
+            ev = mutation_tester.check(str(src), "inc", str(test))
+            assert ev.verdict is False
+            assert "execution error: disk read failure" in ev.detail
+
+        # 5. Empty detail fallback
+        with patch("soma_core.verification.mutation_tester._check_tests",
+                   return_value=mutation_tester.TestRunResult(passed=False, status="fail", detail="")):
+            passed, detail = mutation_tester._run_baseline(str(test))
+            assert passed is False
+            assert detail == "Baseline tests fail against the unmutated code; cannot assess mutations"
+
+
