@@ -83,6 +83,6 @@
     "tests/unit/core/test_platform_adapters.py",
     "tests/unit/verification/test_mutation_tester.py"
   ],
-  "commit_sha": "12ff99a52af0cfa1e12e14577a30e9d8a736e7ef",
-  "tree_hash": "7f70120520c5d9a8f7d8ee781c44265eb077a286"
+  "commit_sha": "5bce62072d4cde7f5ad241afdbdf8c9571fba11b",
+  "tree_hash": "f2db7d44df34cb144cdc7656f9dbab60dfb59c1d"
 }
