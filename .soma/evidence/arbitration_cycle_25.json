@@ -71,6 +71,7 @@
     "tests/conftest.py",
     "tests/integration/test_mulch_invariants.py",
     "tests/unit/cli/test_cli.py",
+    "tests/unit/cli/test_detect_cli.py",
     "tests/unit/cli/test_doctor.py",
     "tests/unit/cli/test_init.py",
     "tests/unit/core/test_ast_driver_runner.py",
@@ -79,6 +80,6 @@
     "tests/unit/core/test_somayaml.py",
     "tests/unit/core/test_workspace_uninitialized.py"
   ],
-  "commit_sha": "633e8940e79e6ea3dbad67498a44b82bc265e3cb",
-  "tree_hash": "b83d5ac91f8ab4de74afe0ed8008897fe89021be"
+  "commit_sha": "94eb5d7a04a7b7ae57db8b044211368923f1a745",
+  "tree_hash": "3038c1f2329a28c8bf979d99ddb409c4106c5028"
 }
