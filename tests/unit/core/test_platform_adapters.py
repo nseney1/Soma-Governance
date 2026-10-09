@@ -132,6 +132,86 @@ def test_claude_adapter_cleans_mcp_server_on_uninstall(tmp_path):
     assert "other" in data.get("mcpServers", {})
 
 
+def test_claude_adapter_strips_legacy_header_on_uninstall(tmp_path):
+    """Verify uninstall strips legacy un-marked Soma Governance Integration headers."""
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    home = tmp_path / "home"
+    home.mkdir()
+
+    claude_md = workspace / "CLAUDE.md"
+    legacy_content = (
+        "# Custom Intro\n\n"
+        "# Soma Governance Integration\n\n"
+        "Rules are checked adaptively.\n\n"
+        "## Active Core Rules\n"
+        "- `providence`: Providence\n\n"
+        "# Custom Footer\n"
+        "Keep this too.\n"
+    )
+    claude_md.write_text(legacy_content, encoding="utf-8")
+
+    adapter = ClaudeAdapter(workspace=workspace, home=home)
+    assert adapter.verify(local=True)
+
+    un_res = adapter.uninstall(local=True, dry_run=False)
+    assert un_res.success
+    assert claude_md.is_file()
+    content = claude_md.read_text(encoding="utf-8")
+    assert "# Custom Intro" in content
+    assert "# Custom Footer" in content
+    assert "Keep this too." in content
+    assert "Soma Governance Integration" not in content
+    assert not adapter.verify(local=True)
+
+
+def test_claude_adapter_idempotent_reinstall(tmp_path):
+    """Verify reinstalling updates the marked block without duplication."""
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    home = tmp_path / "home"
+    home.mkdir()
+
+    claude_md = workspace / "CLAUDE.md"
+    claude_md.write_text("# My Project\n", encoding="utf-8")
+
+    adapter = ClaudeAdapter(workspace=workspace, home=home)
+    res1 = adapter.install(local=True, dry_run=False)
+    assert res1.success
+    content1 = claude_md.read_text(encoding="utf-8")
+    assert content1.count("<!-- SOMA:START -->") == 1
+
+    res2 = adapter.install(local=True, dry_run=False)
+    assert res2.success
+    content2 = claude_md.read_text(encoding="utf-8")
+    assert content2.count("<!-- SOMA:START -->") == 1
+    assert content2.count("<!-- SOMA:END -->") == 1
+    assert "# My Project" in content2
+
+
+def test_claude_adapter_dry_run(tmp_path):
+    """Verify dry_run does not mutate files on disk."""
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    home = tmp_path / "home"
+    home.mkdir()
+
+    adapter = ClaudeAdapter(workspace=workspace, home=home)
+    res_install = adapter.install(local=True, dry_run=True)
+    assert res_install.success
+    assert not (workspace / "CLAUDE.md").exists()
+
+    # Create file and test dry run uninstall
+    claude_md = workspace / "CLAUDE.md"
+    adapter.install(local=True, dry_run=False)
+    assert claude_md.exists()
+
+    res_uninstall = adapter.uninstall(local=True, dry_run=True)
+    assert res_uninstall.success
+    assert claude_md.exists()
+
+
+
 def test_kiro_adapter_install_and_uninstall(tmp_path):
     """Verify KiroAdapter installs steering rules and skills."""
     workspace = tmp_path / "workspace"

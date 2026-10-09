@@ -10,8 +10,96 @@ from soma_cli.platforms.base import PlatformAdapter, PlatformInstallResult
 
 SOMA_MARKER_START = "<!-- SOMA:START -->"
 SOMA_MARKER_END = "<!-- SOMA:END -->"
+_LEGACY_HEADERS = ("# Soma Governance Integration", "# Soma Governance Rules")
 
 __all__ = ["ClaudeAdapter", "SOMA_MARKER_START", "SOMA_MARKER_END"]
+
+
+def _has_soma_section(text: str) -> bool:
+    """Return True if text contains either SOMA markers or legacy Soma headers."""
+    return (
+        (SOMA_MARKER_START in text and SOMA_MARKER_END in text)
+        or any(h in text for h in _LEGACY_HEADERS)
+    )
+
+
+def _inject_soma_section(existing: str, section: str) -> str:
+    """Inject or update Soma configuration section in markdown text."""
+    if not existing.strip():
+        return section
+    if SOMA_MARKER_START in existing and SOMA_MARKER_END in existing:
+        start_idx = existing.index(SOMA_MARKER_START)
+        end_idx = existing.index(SOMA_MARKER_END) + len(SOMA_MARKER_END)
+        return f"{existing[:start_idx]}{section}{existing[end_idx:]}".strip() + "\n"
+    if "Soma Governance Integration" not in existing:
+        return f"{existing.rstrip()}\n\n{section}"
+    return existing
+
+
+def _strip_soma_section(text: str) -> tuple[str, bool]:
+    """Strip Soma section from markdown, returning (cleaned_text, had_soma)."""
+    if SOMA_MARKER_START in text and SOMA_MARKER_END in text:
+        start_idx = text.index(SOMA_MARKER_START)
+        end_idx = text.index(SOMA_MARKER_END) + len(SOMA_MARKER_END)
+        cleaned = (text[:start_idx] + text[end_idx:]).strip()
+        return cleaned, True
+
+    if any(h in text for h in _LEGACY_HEADERS):
+        kept_lines: list[str] = []
+        skipping = False
+        for line in text.splitlines():
+            if line.strip() in _LEGACY_HEADERS:
+                skipping = True
+            elif skipping and line.startswith("# ") and line.strip() not in _LEGACY_HEADERS:
+                skipping = False
+                kept_lines.append(line)
+            elif not skipping:
+                kept_lines.append(line)
+        return "\n".join(kept_lines).strip(), True
+
+    return text.strip(), False
+
+
+def _uninstall_claude_md(path: Path, dry_run: bool = False) -> bool:
+    """Remove Soma section from CLAUDE.md or delete file if only Soma was present.
+
+    Returns True if the file was modified or removed.
+    """
+    if not path.is_file():
+        return False
+
+    text = path.read_text(encoding="utf-8")
+    remaining, had_soma = _strip_soma_section(text)
+    if not had_soma:
+        return False
+
+    if not dry_run:
+        if not remaining:
+            path.unlink()
+        else:
+            path.write_text(remaining + "\n", encoding="utf-8")
+    return True
+
+
+def _clean_mcp_config(path: Path, server_name: str = "soma", dry_run: bool = False) -> bool:
+    """Remove a server from an MCP JSON config. Return True if modified."""
+    if not path.is_file():
+        return False
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        servers = data.get("mcpServers")
+        if not isinstance(servers, dict) or server_name not in servers:
+            return False
+        if dry_run:
+            return True
+        del servers[server_name]
+        if not servers and len(data) == 1:
+            path.unlink()
+        else:
+            path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        return True
+    except Exception:
+        return False
 
 
 class ClaudeAdapter(PlatformAdapter):
@@ -56,31 +144,22 @@ class ClaudeAdapter(PlatformAdapter):
             success=True,
             scope="local" if local else "global",
         )
-        claude_md, mcp_json = self.get_target_paths(local=local)
+        claude_md, _ = self.get_target_paths(local=local)
 
-        if not dry_run:
-            claude_md.parent.mkdir(parents=True, exist_ok=True)
-
-        content = self.render_config()
         if dry_run:
             result.installed_files.append(claude_md)
-        else:
-            try:
-                if claude_md.is_file():
-                    existing = claude_md.read_text(encoding="utf-8")
-                    if SOMA_MARKER_START in existing and SOMA_MARKER_END in existing:
-                        start_idx = existing.index(SOMA_MARKER_START)
-                        end_idx = existing.index(SOMA_MARKER_END) + len(SOMA_MARKER_END)
-                        updated = existing[:start_idx] + content + existing[end_idx:]
-                        claude_md.write_text(updated.strip() + "\n", encoding="utf-8")
-                    elif "Soma Governance Integration" not in existing:
-                        claude_md.write_text(existing.rstrip() + "\n\n" + content, encoding="utf-8")
-                else:
-                    claude_md.write_text(content, encoding="utf-8")
-                result.installed_files.append(claude_md)
-            except Exception as exc:
-                result.errors.append(f"Failed to write {claude_md}: {exc}")
-                result.success = False
+            result.messages.append(f"Installed Claude configuration to {claude_md}")
+            return result
+
+        try:
+            claude_md.parent.mkdir(parents=True, exist_ok=True)
+            existing = claude_md.read_text(encoding="utf-8") if claude_md.is_file() else ""
+            updated = _inject_soma_section(existing, self.render_config())
+            claude_md.write_text(updated, encoding="utf-8")
+            result.installed_files.append(claude_md)
+        except Exception as exc:
+            result.errors.append(f"Failed to write {claude_md}: {exc}")
+            result.success = False
 
         result.messages.append(f"Installed Claude configuration to {claude_md}")
         return result
@@ -92,57 +171,16 @@ class ClaudeAdapter(PlatformAdapter):
             scope="local" if local else "global",
         )
         claude_md, mcp_json = self.get_target_paths(local=local)
-        if claude_md.is_file():
-            if dry_run:
+
+        try:
+            if _uninstall_claude_md(claude_md, dry_run=dry_run):
                 result.uninstalled_files.append(claude_md)
-            else:
-                try:
-                    existing = claude_md.read_text(encoding="utf-8")
-                    if SOMA_MARKER_START in existing and SOMA_MARKER_END in existing:
-                        start_idx = existing.index(SOMA_MARKER_START)
-                        end_idx = existing.index(SOMA_MARKER_END) + len(SOMA_MARKER_END)
-                        remaining = (existing[:start_idx] + existing[end_idx:]).strip()
-                    elif "# Soma Governance Integration" in existing or "# Soma Governance Rules" in existing:
-                        lines = existing.splitlines()
-                        kept_lines = []
-                        skipping = False
-                        for line in lines:
-                            if line.strip() in ("# Soma Governance Integration", "# Soma Governance Rules"):
-                                skipping = True
-                            elif skipping and line.startswith("# ") and line.strip() not in ("# Soma Governance Integration", "# Soma Governance Rules"):
-                                skipping = False
-                                kept_lines.append(line)
-                            elif not skipping:
-                                kept_lines.append(line)
-                        remaining = "\n".join(kept_lines).strip()
-                    else:
-                        remaining = ""
+        except Exception as exc:
+            result.errors.append(f"Failed to remove {claude_md}: {exc}")
+            result.success = False
 
-                    if not remaining:
-                        claude_md.unlink()
-                        result.uninstalled_files.append(claude_md)
-                    else:
-                        claude_md.write_text(remaining + "\n", encoding="utf-8")
-                        result.uninstalled_files.append(claude_md)
-                except Exception as exc:
-                    result.errors.append(f"Failed to remove {claude_md}: {exc}")
-                    result.success = False
-
-        if mcp_json.is_file():
-            try:
-                data = json.loads(mcp_json.read_text(encoding="utf-8"))
-                if "mcpServers" in data and "soma" in data["mcpServers"]:
-                    if dry_run:
-                        result.uninstalled_files.append(mcp_json)
-                    else:
-                        del data["mcpServers"]["soma"]
-                        if not data["mcpServers"] and len(data) == 1:
-                            mcp_json.unlink()
-                        else:
-                            mcp_json.write_text(json.dumps(data, indent=2), encoding="utf-8")
-                        result.uninstalled_files.append(mcp_json)
-            except Exception:
-                pass
+        if _clean_mcp_config(mcp_json, dry_run=dry_run):
+            result.uninstalled_files.append(mcp_json)
 
         result.messages.append(f"Uninstalled Claude configuration from {claude_md}")
         return result
@@ -151,8 +189,4 @@ class ClaudeAdapter(PlatformAdapter):
         claude_md, _ = self.get_target_paths(local=local)
         if not claude_md.is_file():
             return False
-        content = claude_md.read_text(encoding="utf-8")
-        return (
-            (SOMA_MARKER_START in content and SOMA_MARKER_END in content)
-            or "Soma Governance Integration" in content
-        )
+        return _has_soma_section(claude_md.read_text(encoding="utf-8"))

@@ -24,13 +24,11 @@ __all__ = [
     "resolve_driver_executable",
 ]
 
-_PYTHON_NAMES = frozenset({"python3", "python"})
+_PYTHON_NAMES = frozenset({"{python}", "python3", "python", "python.exe", "python3.exe"})
 
 
 def _is_python_name(name: str) -> bool:
-    clean = name.lower()
-    if clean.endswith(".exe"):
-        clean = clean[:-4]
+    clean = name.strip().lower()
     return clean in _PYTHON_NAMES
 
 
@@ -123,23 +121,15 @@ def _split_command(cmd: str) -> list[str]:
 def resolve_driver_executable(name: str) -> Optional[str]:
     """Return the path a driver command's executable resolves to, or None.
 
-    Bundled drivers are provisioned as ``python3 <script>``, but a python.org
-    install on Windows ships no python3.exe (#144). A bare python name that is
-    not on PATH falls back to the interpreter running soma, which is Python 3
-    by definition; slots.yaml keeps the portable name.
+    Placeholder tokens '{python}', 'python3', and 'python' resolve deterministically
+    to the active Python interpreter running Soma (sys.executable). Other commands
+    are resolved via PATH.
     """
-    found = shutil.which(name)
-    if found:
-        # On Windows, WindowsApps contains 0-byte execution alias stubs that
-        # exit 49/9009 or open the Microsoft Store. Reject them for Python names.
-        if sys.platform == "win32" and "windowsapps" in found.lower():
-            if _is_python_name(name) and sys.executable:
-                return sys.executable
-            return None
-        return found
-    if _is_python_name(name) and sys.executable:
-        return sys.executable
-    return None
+    clean = name.strip()
+    if _is_python_name(clean):
+        return sys.executable if sys.executable else None
+
+    return shutil.which(clean)
 
 
 class ASTDriverRunner:
@@ -177,7 +167,7 @@ class ASTDriverRunner:
 
         ext = target_path.suffix.lower()
 
-        # Fast path: Native Python driver
+        # Fast path 1: Native Python driver
         if ext == ".py":
             return parse_python_ast(target_path)
 
@@ -187,6 +177,19 @@ class ASTDriverRunner:
             raise NoDriverConfiguredError(
                 f"No AST driver configured for extension '{ext}' on {target_path.name}"
             )
+
+        # Fast path 2: Built-in Rust driver executed in-process
+        if ext == ".rs" and "rust_ast.py" in driver_cmd:
+            try:
+                from soma_core.ast.drivers.templates.rust_ast import parse_rust_source
+
+                source = target_path.read_text(encoding="utf-8", errors="replace")
+                ast_dict = parse_rust_source(source, str(target_path))
+                return NormalizedAST.from_dict(ast_dict)
+            except Exception as exc:
+                raise ASTDriverError(
+                    f"In-process Rust AST driver failed on {target_path.name}: {exc}"
+                ) from exc
 
         cmd_parts = _split_command(driver_cmd)
         if not cmd_parts:

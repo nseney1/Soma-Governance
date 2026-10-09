@@ -151,28 +151,36 @@ def test_python_driver_runs_when_interpreter_name_is_not_on_path(tmp_path, monke
     assert {"alpha", "beta"} <= {d.name for d in result.definitions}
 
 
-def test_resolve_driver_executable_falls_back_only_for_python_names(tmp_path, monkeypatch):
-    # Asserted on the resolver, not a subprocess: Windows CreateProcess also
-    # searches the parent interpreter's directory, so an emptied PATH alone
-    # can't make a bare python3 unlaunchable on every runner.
+def test_resolve_driver_executable_deterministic_tokens(tmp_path, monkeypatch):
     from soma_core.ast.runner import resolve_driver_executable
     empty_bin = tmp_path / "empty-bin"
     empty_bin.mkdir()
     monkeypatch.setenv("PATH", str(empty_bin))
     monkeypatch.chdir(empty_bin)
 
+    # Python tokens resolve to the active interpreter regardless of PATH
     assert resolve_driver_executable("python3") == sys.executable
     assert resolve_driver_executable("python3.exe") == sys.executable
+    assert resolve_driver_executable("python") == sys.executable
     assert resolve_driver_executable("PYTHON") == sys.executable
+    assert resolve_driver_executable("{python}") == sys.executable
     assert resolve_driver_executable("node") is None
-
-    # Test WindowsApps stub rejection
-    fake_stub = tmp_path / "WindowsApps" / "python3.exe"
-    fake_stub.parent.mkdir(parents=True, exist_ok=True)
-    fake_stub.touch()
-    monkeypatch.setattr(shutil, "which", lambda cmd: str(fake_stub) if "python" in cmd else None)
-    monkeypatch.setattr(sys, "platform", "win32")
-    assert resolve_driver_executable("python3") == sys.executable
 
     monkeypatch.setattr(sys, "executable", "")
     assert resolve_driver_executable("python3") is None
+    assert resolve_driver_executable("{python}") is None
+
+
+def test_in_process_rust_driver_execution(tmp_path):
+    """Verify built-in Rust AST driver executes in-process with zero subprocess overhead."""
+    source = tmp_path / "lib.rs"
+    source.write_text("pub fn calculate(x: i32) -> i32 { x * 2 }\n", encoding="utf-8")
+
+    registry = ASTDriverRegistry({".rs": "{python} .soma/drivers/rust_ast.py"})
+    runner = ASTDriverRunner(registry=registry)
+    result = runner.parse_file(source, workspace_root=tmp_path)
+
+    assert result.language == "rust"
+    assert len(result.definitions) == 1
+    assert result.definitions[0].name == "calculate"
+    assert result.definitions[0].is_exported is True
