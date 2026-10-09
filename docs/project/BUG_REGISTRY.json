@@ -1584,6 +1584,107 @@
       "regression_test": "tests/unit/cli/test_init.py::TestPolyglotInit::test_init_claude_uses_home_directory_not_project_root",
       "pattern": "Project root erroneously passed as home directory override during target path resolution",
       "changelog_ref": "v1.4.0"
+    },
+    {
+      "id": "BUG-090",
+      "status": "fixed",
+      "title": "soma status always reports Core rules: 0 active due to cli.py setting _project_root",
+      "discovered_in": "v1.4.0",
+      "fixed_in": "v1.5.0",
+      "root_cause": "path_error",
+      "severity": "moderate",
+      "description": "soma_cli/cli.py assigned args._project_root = args.ws.root for all commands. soma_cli/status.py checked if _project_root is not None to branch into test mode, causing production runs to attempt discovering rules from an uninstalled temporary repo path, resulting in 'Core rules: 0 active'. Fixed: decoupled _project_root workspace resolution from test_mode.",
+      "affected_files": [
+        "soma_cli/status.py"
+      ],
+      "regression_test": "tests/unit/cli/test_status.py::TestStatus::test_status_with_project_root_counts_platform_rules",
+      "pattern": "Internal test seam flag conflated with general workspace root configuration",
+      "changelog_ref": "v1.5.0"
+    },
+    {
+      "id": "BUG-091",
+      "status": "fixed",
+      "title": "soma uninstall --platform claude does not undo soma init",
+      "discovered_in": "v1.4.0",
+      "fixed_in": "v1.5.0",
+      "root_cause": "platform_compat",
+      "severity": "moderate",
+      "description": "soma uninstall --platform claude only removed CLAUDE.md and cleaned .mcp.json, leaving behind 5 starter rule markdown files in ~/.claude/, workspace .mcp.json, and the git pre-commit hook block installed by soma init. Fixed: uninstall now cleans installed rule files, cleans both target and workspace .mcp.json, and excises the git pre-commit hook block.",
+      "affected_files": [
+        "soma_cli/platforms/claude.py",
+        "soma_cli/install.py"
+      ],
+      "regression_test": "tests/unit/core/test_platform_adapters.py::test_claude_adapter_cleans_rule_files_on_uninstall",
+      "pattern": "Asymmetric lifecycle where uninstall cleans only a subset of files written by init",
+      "changelog_ref": "v1.5.0"
+    },
+    {
+      "id": "BUG-092",
+      "status": "fixed",
+      "title": "Discrepancy between init and install for Claude rules and missing local flag on init",
+      "discovered_in": "v1.4.0",
+      "fixed_in": "v1.5.0",
+      "root_cause": "mapping_error",
+      "severity": "moderate",
+      "description": "soma install --platform claude --local wrote a 10-line filename stub instead of full rule text, whereas soma init copied full markdown rule files. Furthermore, soma init lacked a --local flag to target <project>/.claude. Fixed: unified ClaudeAdapter.render_config() to render full rule content across both init and install, and added --local support to soma init.",
+      "affected_files": [
+        "soma_cli/platforms/claude.py",
+        "soma_cli/init.py"
+      ],
+      "regression_test": "tests/unit/cli/test_init.py::TestPolyglotInit::test_init_claude_local_installs_to_project_root",
+      "pattern": "Multiple commands performing similar configuration rendering with inconsistent depth and scopes",
+      "changelog_ref": "v1.5.0"
+    },
+    {
+      "id": "BUG-093",
+      "status": "fixed",
+      "title": "soma uninstall --dry-run printed past-tense Uninstalled instead of would uninstall",
+      "discovered_in": "v1.4.0",
+      "fixed_in": "v1.5.0",
+      "root_cause": "silent_failure",
+      "severity": "low",
+      "description": "soma uninstall --dry-run printed 'Uninstalled <file>' using past tense instead of standard dry-run notation '[dry-run] Would uninstall <file>', misleading users into believing deletions occurred. Fixed across all platform adapters.",
+      "affected_files": [
+        "soma_cli/platforms/claude.py",
+        "soma_cli/platforms/copilot.py",
+        "soma_cli/platforms/mcp.py"
+      ],
+      "regression_test": "tests/unit/core/test_platform_adapters.py::test_claude_adapter_dry_run_wording",
+      "pattern": "Dry-run mode shares identical logging output strings with destructive execution path",
+      "changelog_ref": "v1.5.0"
+    },
+    {
+      "id": "BUG-094",
+      "status": "fixed",
+      "title": "MCP server shutdown reflector invokes make test when make is missing, scoring cells -1.0",
+      "discovered_in": "v1.4.0",
+      "fixed_in": "v1.5.0",
+      "root_cause": "platform_compat",
+      "severity": "critical",
+      "description": "When a client disconnected from soma-mcp, the shutdown handler invoked detect_test_runner() which preferred Makefile test targets even if 'make' was not installed on the system (common on Windows). The execution failed with returncode 127, recording tests FAILED and degrading all cell fitness to -1.0. Fixed: detect_test_runner() verifies make availability with shutil.which('make'), and _run_verify treats exit code 127 as unverified/command-not-found rather than test failure.",
+      "affected_files": [
+        "soma_core/outcomes/telemetry.py",
+        "soma_mcp/server.py"
+      ],
+      "regression_test": "tests/unit/core/test_outcomes_telemetry.py::test_detect_test_runner_skips_makefile_when_make_missing",
+      "pattern": "Build tool invoked without verifying binary existence, penalizing system state on missing tools",
+      "changelog_ref": "v1.5.0"
+    },
+    {
+      "id": "BUG-095",
+      "status": "fixed",
+      "title": "Mutation tester baseline check obscures root causes of unmutated test failures",
+      "discovered_in": "v1.4.0",
+      "fixed_in": "v1.5.0",
+      "root_cause": "silent_failure",
+      "severity": "moderate",
+      "description": "When the unmutated baseline test run failed, mutation_tester reported a blanket 'Baseline tests fail against the unmutated code; cannot assess mutations', hiding whether the failure was due to a missing pytest binary, process timeout under load, or actual assertion/import error. Fixed: captured structured TestRunResult and surfaced rich diagnostic details in the baseline failure reason.",
+      "affected_files": [
+        "soma_core/verification/mutation_tester.py"
+      ],
+      "regression_test": "tests/unit/verification/test_mutation_tester.py::TestPolyglotMutationTesterCoverage::test_mutation_tester_reports_diagnostic_baseline_reasons",
+      "pattern": "Generic error message swallows subprocess exit codes and stderr during prerequisite checks",
+      "changelog_ref": "v1.5.0"
     }
   ]
 }

@@ -8,6 +8,9 @@ from typing import Any
 from soma_cli.platforms.base import PlatformAdapter, PlatformInstallResult
 
 
+__all__ = ["CopilotAdapter"]
+
+
 class CopilotAdapter(PlatformAdapter):
     """Platform adapter for GitHub Copilot Workspace and CLI."""
 
@@ -96,7 +99,8 @@ class CopilotAdapter(PlatformAdapter):
                     result.errors.append(f"Failed to remove {instructions_dir}: {exc}")
                     result.success = False
 
-        result.messages.append(f"Uninstalled Copilot governance from {self.workspace}")
+        action = "[dry-run] Would uninstall" if dry_run else "Uninstalled"
+        result.messages.append(f"{action} Copilot governance from {self.workspace}")
         return result
 
     def verify(self, local: bool = False) -> bool:

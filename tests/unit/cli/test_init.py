@@ -125,6 +125,11 @@ class TestGetRulesDir:
         with pytest.raises(ValueError, match="Unsupported platform"):
             get_rules_dir("unknown", tmp_path)
 
+    def test_unknown_raises_local(self, tmp_path):
+        from soma_cli.init import get_rules_dir
+        with pytest.raises(ValueError, match="Unsupported platform"):
+            get_rules_dir("unknown", tmp_path, local=True)
+
 
 class TestInstallStarterRules:
     """Verify starter rule installation."""
@@ -460,6 +465,39 @@ class TestPolyglotInit:
         assert not (project_dir / ".claude").exists(), "Claude rules were incorrectly installed into <project>/.claude!"
         assert (home_dir / ".claude").is_dir(), "Claude rules were not installed to ~/.claude!"
         assert (home_dir / ".claude" / "CLAUDE.md").is_file()
+
+    def test_init_claude_local_installs_to_project_root(self, tmp_path, monkeypatch):
+        """BUG-092: soma init --platform claude --local installs to <project>/.claude and <project>/CLAUDE.md."""
+        from soma_cli.init import run_init
+        from soma_core.workspace import Workspace
+
+        project_dir = tmp_path / "project"
+        project_dir.mkdir()
+        home_dir = tmp_path / "home"
+        home_dir.mkdir()
+
+        monkeypatch.setenv("HOME", str(home_dir))
+        monkeypatch.setattr("pathlib.Path.home", lambda: home_dir)
+
+        args = argparse.Namespace(
+            project=str(project_dir),
+            _project_root=project_dir,
+            ws=Workspace.for_init(project_dir),
+            platform="claude",
+            rules="minimal",
+            local=True,
+            mcp=False,
+            yes=True,
+            force=True,
+            dry_run=False,
+        )
+
+        rc = run_init(args)
+        assert rc == 0
+        assert (project_dir / ".claude").is_dir(), "Claude rules were not installed into <project>/.claude!"
+        assert (project_dir / "CLAUDE.md").is_file(), "CLAUDE.md was not created in project root!"
+        assert not (home_dir / ".claude").exists(), "Home directory was unexpectedly modified in local mode!"
+
 
 
 

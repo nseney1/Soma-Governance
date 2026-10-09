@@ -5,6 +5,27 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.5.0] — 2026-10-09 — "Lifecycle Parity & Diagnostic Transparency"
+
+### Developer Experience, Full Lifecycle Parity & Mutation Diagnostics
+- **Production Status Rule Counting Parity (BUG-090)**:
+  - Decoupled `_project_root` workspace resolution from `test_mode` in `soma status`. Production CLI executions now accurately count active platform rules rather than erroneously reporting `Core rules: 0 active`.
+- **Symmetric Claude Platform Uninstallation (BUG-091)**:
+  - Extended `soma uninstall --platform claude` to clean up the 5 starter rule `.md` files in `~/.claude/` (or `<project>/.claude/`), sanitize both target and workspace `.mcp.json` configs, and excise the git pre-commit hook block installed during `soma init`.
+  - Added opt-in `--purge` flag to `soma uninstall` for explicitly removing `.soma/` governance state, while preserving `.soma/` by default.
+- **Claude Rules Parity & Local Scoping in `soma init` (BUG-092)**:
+  - Unified `ClaudeAdapter.render_config()` to render full rule content across both `init` and `install` workflows, eliminating truncated rule stub files.
+  - Added `--local` flag support to `soma init`, allowing developers to target project-local rule directories (`<project>/.claude` and `<project>/CLAUDE.md`) in addition to default global configuration.
+- **Dry-Run Output Standardization (BUG-093)**:
+  - Standardized uninstallation logging across all platform adapters (`claude`, `copilot`, `mcp`) to use standard `[dry-run] Would uninstall <path>` notation instead of past-tense `"Uninstalled"` statements during `--dry-run`.
+- **Telemetry Runner Safety & Missing Make Graceful Degradation (BUG-094)**:
+  - Guarded Makefile discovery in outcome telemetry with `shutil.which("make")` validation, preventing failed subprocess invocations on systems lacking `make` (such as bare Windows environments).
+  - Treated process exit code 127 as unverified/command-not-found rather than recording a false test failure, preventing unfair -1.0 fitness penalties across all governed cells.
+  - Added `SOMA_REFLECT_ON_CLOSE` environment variable check to allow graceful opt-out of MCP server shutdown test runs.
+- **Mutation Tester Diagnostic Transparency (BUG-095)**:
+  - Introduced structured `TestRunResult` to capture subprocess exit codes, timeouts, and stderr details during mutation testing prerequisite baseline checks.
+  - Replaced generic `"Baseline tests fail against the unmutated code"` errors with actionable diagnostic reasons (e.g. timeout duration under load, unresolved test runner binaries, or exact test assertion/traceback excerpts).
+
 ## [1.4.0] — 2026-10-09 — "Cross-Platform Execution & Safe Claude Lifecycle"
 
 ### Cross-Platform Execution, Windows Toolchain Hardening & Claude Lifecycle Parity

@@ -28,10 +28,10 @@ tags:
 fitness:
   score: 0.6
   impact_weight: 1.0
-  triggers: 44
-  true_positives: 17.6844
-  false_positives: 20.2668
-  last_trigger_date: "2026-10-09T04:28:57Z"
+  triggers: 49
+  true_positives: 19.7344
+  false_positives: 21.6673
+  last_trigger_date: "2026-10-09T13:40:49Z"
 ---
 
 When performing lifecycle operations on Soma's own cells (create, promote,

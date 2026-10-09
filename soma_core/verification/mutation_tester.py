@@ -10,6 +10,7 @@ suite against each mutant, and reports surviving mutations.
 import ast
 import atexit
 import copy
+from dataclasses import dataclass
 import re
 import subprocess
 import sys
@@ -231,22 +232,67 @@ def _apply_mutation_by_index(
         return None
 
 
-def _run_tests(test_file: str, timeout: int = 30) -> bool:
-    """Run pytest on *test_file*. Returns True if tests PASS."""
+@dataclass
+class TestRunResult:
+    passed: bool
+    status: str = "pass"  # "pass", "fail", "timeout", "missing_runner", "error"
+    detail: str = ""
+
+
+def _check_tests(test_file: str, timeout: int = 30) -> TestRunResult:
+    """Run pytest on *test_file* and return structured result with diagnostics."""
     from soma_core.verification.test_runner import resolve_pytest_cmd
 
     pytest_cmd = resolve_pytest_cmd()
     if not pytest_cmd:
-        return False
+        return TestRunResult(
+            passed=False,
+            status="missing_runner",
+            detail="pytest executable could not be resolved in active environment",
+        )
     try:
         result = subprocess.run(
-            pytest_cmd + [test_file, "-x", "-q", "--no-header", "--tb=no"],
+            pytest_cmd + [test_file, "-x", "-q", "--no-header", "--tb=short"],
             capture_output=True,
             timeout=timeout,
+            text=True,
         )
-        return result.returncode == 0
-    except (subprocess.TimeoutExpired, Exception):
-        return False
+        if result.returncode == 0:
+            return TestRunResult(passed=True, status="pass", detail="")
+        err_msg = (result.stderr or result.stdout or "").strip()
+        tail = "\n".join(err_msg.splitlines()[-5:])
+        return TestRunResult(
+            passed=False,
+            status="fail",
+            detail=f"exit code {result.returncode}: {tail[:300]}",
+        )
+    except subprocess.TimeoutExpired:
+        return TestRunResult(
+            passed=False,
+            status="timeout",
+            detail=f"timed out after {timeout}s under load",
+        )
+    except Exception as e:
+        return TestRunResult(
+            passed=False,
+            status="error",
+            detail=f"execution error: {e}",
+        )
+
+
+def _run_tests(test_file: str, timeout: int = 30) -> bool:
+    """Run pytest on *test_file*. Returns True if tests PASS."""
+    return _check_tests(test_file, timeout=timeout).passed
+
+
+def _run_baseline(test_file: str, timeout: int = 30) -> tuple[bool, str]:
+    """Run baseline tests and return (passed, failure_detail)."""
+    if not _run_tests(test_file, timeout=timeout):
+        res = _check_tests(test_file, timeout=timeout)
+        if not res.passed and res.detail:
+            return False, f"Baseline tests fail against the unmutated code ({res.detail}); cannot assess mutations"
+        return False, "Baseline tests fail against the unmutated code; cannot assess mutations"
+    return True, ""
 
 
 def apply_mutation_point(source: str, point: MutationPoint) -> Optional[str]:
@@ -370,14 +416,16 @@ def check(
         total = len(mutation_points)
         survived: list[int] = []
 
-        if mutation_points and not _run_tests(test_file):
-            return ToolEvidence(
-                tool="mutation_tester",
-                target=f"{target_file}::{target_function}",
-                verdict=False,
-                detail="Baseline tests fail against the unmutated code; cannot assess mutations",
-                lines=[-1],
-            )
+        if mutation_points:
+            baseline_passed, baseline_detail = _run_baseline(test_file)
+            if not baseline_passed:
+                return ToolEvidence(
+                    tool="mutation_tester",
+                    target=f"{target_file}::{target_function}",
+                    verdict=False,
+                    detail=baseline_detail,
+                    lines=[-1],
+                )
 
         for m in mutation_points:
             mutated_source = apply_mutation_point(source, m)
@@ -442,14 +490,16 @@ def check(
     # A mutant counts as killed whenever the tests fail, so tests that can't
     # pass against the original code (syntax/import error, wrong assertion)
     # would "kill" every mutant and pass (BUG-034). Fail closed instead.
-    if mutation_candidates and not _run_tests(test_file):
-        return ToolEvidence(
-            tool="mutation_tester",
-            target=f"{target_file}::{target_function}",
-            verdict=False,
-            detail="Baseline tests fail against the unmutated code; cannot assess mutations",
-            lines=[-1],
-        )
+    if mutation_candidates:
+        baseline_passed, baseline_detail = _run_baseline(test_file)
+        if not baseline_passed:
+            return ToolEvidence(
+                tool="mutation_tester",
+                target=f"{target_file}::{target_function}",
+                verdict=False,
+                detail=baseline_detail,
+                lines=[-1],
+            )
 
     for orig_idx, mutation in mutation_candidates:
         mutated_source = _apply_mutation_by_index(source, target_function, orig_idx)

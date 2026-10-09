@@ -93,14 +93,19 @@ def detect_project_type(project_root: Path) -> str:
 
 # ── Rules directory per platform ────────────────────────────────────────────
 
-def get_rules_dir(platform: str, home: Path | None = None,
-                  project_root: Path | None = None) -> Path:
+def get_rules_dir(
+    platform: str,
+    home: Path | None = None,
+    project_root: Path | None = None,
+    local: bool = False,
+) -> Path:
     """Return the target rules directory for the given platform.
 
     Args:
         platform: One of 'gemini', 'claude', 'cursor', 'copilot', 'kiro'.
         home: Home directory override (for testing).
         project_root: Project directory override (for copilot, which is project-relative).
+        local: If True, return project-local rules directory.
 
     Returns:
         Path to the platform's rules directory.
@@ -114,6 +119,21 @@ def get_rules_dir(platform: str, home: Path | None = None,
     if project_root is None:
         project_root = Path.cwd()
     project_root = Path(project_root)
+
+    if local:
+        local_dirs = {
+            "gemini": project_root / ".gemini" / "rules",
+            "claude": project_root / ".claude",
+            "cursor": project_root / ".cursor" / "rules",
+            "copilot": project_root / ".github" / "copilot",
+            "kiro": project_root / ".kiro" / "steering",
+        }
+        if platform not in local_dirs:
+            raise ValueError(
+                f"Unsupported platform: '{platform}'. "
+                f"Supported: {', '.join(sorted(local_dirs))}"
+            )
+        return local_dirs[platform]
 
     dirs = {
         "gemini": home / ".gemini" / "config" / "rules",
@@ -416,7 +436,8 @@ def run_init(args: argparse.Namespace) -> int:
     # 4. Resolve target directory
     try:
         home = getattr(args, "_home", getattr(args, "_home_override", None))
-        rules_dir = get_rules_dir(platform, home=home, project_root=project_root)
+        local = getattr(args, "local", False)
+        rules_dir = get_rules_dir(platform, home=home, project_root=project_root, local=local)
     except ValueError as e:
         print(f"  ❌ {e}")
         return 1
@@ -481,7 +502,8 @@ def run_init(args: argparse.Namespace) -> int:
 
     # 8. Claude-specific: concatenate rules into CLAUDE.md
     if platform == "claude" and installed and not dry_run:
-        _install_claude_md(rules_dir, force=force)
+        target_md = (project_root / "CLAUDE.md") if local else (rules_dir / "CLAUDE.md")
+        _install_claude_md(rules_dir, force=force, claude_md=target_md)
 
     if dry_run:
         print("  Dry run complete. No files were created.")
@@ -518,13 +540,18 @@ SOMA_MARKER_START = "<!-- SOMA:START -->"
 SOMA_MARKER_END = "<!-- SOMA:END -->"
 
 
-def _install_claude_md(rules_dir: Path, force: bool = False) -> None:
+def _install_claude_md(
+    rules_dir: Path,
+    force: bool = False,
+    claude_md: Path | None = None,
+) -> None:
     """Concatenate installed rules into CLAUDE.md for Claude Code.
 
     Claude Code reads CLAUDE.md, not individual .md files. We concatenate
     all installed rules between SOMA markers so we can update them later.
     """
-    claude_md = rules_dir / "CLAUDE.md"  # ~/.claude/CLAUDE.md
+    if claude_md is None:
+        claude_md = rules_dir / "CLAUDE.md"  # ~/.claude/CLAUDE.md
 
     # Build the soma governance section
     sections = []
@@ -596,6 +623,11 @@ class InitCommand(SomaCommand):
             "--platform",
             choices=["gemini", "claude", "cursor", "copilot", "kiro"],
             help="Skip platform detection, force a platform",
+        )
+        parser.add_argument(
+            "--local",
+            action="store_true",
+            help="Install rules to project-local directory instead of user home",
         )
         parser.add_argument(
             "--rules",
