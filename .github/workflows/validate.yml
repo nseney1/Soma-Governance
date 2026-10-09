@@ -107,7 +107,7 @@ jobs:
 
       - name: Install test dependencies
         run: |
-          pip install pytest==8.3.4 pytest-xdist==3.6.1 ruff==0.9.10 hypothesis==6.126.0 coverage==7.6.12 pyyaml==6.0.2
+          pip install pytest==8.3.4 pytest-xdist==3.6.1 ruff==0.9.10 hypothesis==6.126.0 coverage==7.6.12 pyyaml==6.0.2 anyio==4.12.1
           pip install dist/*.whl
 
       # The unit suite below runs from the checkout (pythonpath = ["."]), so on
@@ -214,7 +214,7 @@ jobs:
 
       - name: Install test dependencies
         run: |
-          pip install pytest==8.3.4 pytest-xdist==3.6.1 ruff==0.9.10 hypothesis==6.126.0 coverage==7.6.12 pyyaml==6.0.2
+          pip install pytest==8.3.4 pytest-xdist==3.6.1 ruff==0.9.10 hypothesis==6.126.0 coverage==7.6.12 pyyaml==6.0.2 anyio==4.12.1
           pip install dist/*.whl
 
       - name: Wheel smoke test (source-isolated)

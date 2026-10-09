@@ -303,7 +303,7 @@ class TestInvariant6_BugRegistryIntegrity:
     def test_registry_schema_and_regression_tests_pass(self):
         bugs = load_bug_registry(str(REPO_ROOT))
         bug_list = bugs.get("bugs", [])
-        assert len(bug_list) == 85, f"Expected exactly 85 bug entries, got {len(bug_list)}"
+        assert len(bug_list) == 89, f"Expected exactly 89 bug entries, got {len(bug_list)}"
 
         unique_errors = verify_unique_ids(bugs)
         assert not unique_errors, f"Bug ID uniqueness errors: {unique_errors}"

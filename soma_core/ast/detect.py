@@ -28,7 +28,7 @@ LANGUAGE_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "extensions": [".rs"],
         "toolchains": ["cargo", "rustc"],
         "driver_slot": "ast_driver_rs",
-        "default_command": "python3 .soma/drivers/rust_ast.py",
+        "default_command": "{python} .soma/drivers/rust_ast.py",
         "driver_filename": "rust_ast.py",
     },
     "typescript": {

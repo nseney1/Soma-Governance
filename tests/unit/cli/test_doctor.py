@@ -284,3 +284,35 @@ def test_doctor_command_contract():
     with patch("soma_cli.doctor.run_doctor", return_value=0) as mock_run:
         assert cmd.execute(parsed) == 0
         mock_run.assert_called_once_with(parsed)
+
+
+def _rust_project_with_python3_slot(tmp_path, monkeypatch):
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "main.rs").write_text("fn main() {}")
+    slots_file = tmp_path / ".soma" / "slots.yaml"
+    slots_file.parent.mkdir(parents=True)
+    slots_file.write_text('slots:\n  ast_driver_rs: "python3 .soma/drivers/rust_ast.py"\n')
+    empty_bin = tmp_path / "empty-bin"
+    empty_bin.mkdir()
+    monkeypatch.setenv("PATH", str(empty_bin))
+
+
+def test_check_ast_drivers_python3_slot_resolves_without_python3_on_path(tmp_path, monkeypatch, capsys):
+    """#144: python.org installs on Windows ship no python3.exe; the slot runs
+    on the interpreter running soma, so doctor must not report it broken."""
+    from soma_cli.doctor import _check_ast_drivers
+    _rust_project_with_python3_slot(tmp_path, monkeypatch)
+
+    assert _check_ast_drivers(tmp_path) is True
+    out = capsys.readouterr().out
+    assert "AST driver (.rs): python3 resolvable" in out
+    assert sys.executable in out
+
+
+def test_check_ast_drivers_python3_slot_unresolvable_without_any_interpreter(tmp_path, monkeypatch, capsys):
+    from soma_cli.doctor import _check_ast_drivers
+    _rust_project_with_python3_slot(tmp_path, monkeypatch)
+    monkeypatch.setattr(sys, "executable", "")
+
+    assert _check_ast_drivers(tmp_path) is False
+    assert "executable 'python3' not found on PATH" in capsys.readouterr().out

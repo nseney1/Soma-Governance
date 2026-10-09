@@ -199,6 +199,7 @@ def _check_ast_drivers(project_root: Path | None = None, fix: bool = False) -> b
     import shlex
     from soma_core.skills.slots import SlotRegistry
     from soma_core.ast.detect import detect_project_languages, provision_ast_driver_slots
+    from soma_core.ast.runner import resolve_driver_executable
 
     ws_root = Path(project_root or Path.cwd())
     slots_path = ws_root / ".soma" / "slots.yaml"
@@ -269,7 +270,7 @@ def _check_ast_drivers(project_root: Path | None = None, fix: bool = False) -> b
         if not parts:
             continue
         bin_name = parts[0]
-        found = shutil.which(bin_name)
+        found = resolve_driver_executable(bin_name)
         if found:
             print(f"  ✅ AST driver ({ext}): {bin_name} resolvable ({found})")
         else:

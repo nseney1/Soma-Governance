@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 import pytest
+import shutil
 import sys
 
 from soma_core.ast.runner import (
@@ -128,3 +129,58 @@ def test_split_command_windows(monkeypatch):
         cmd_unquoted = r"C:\Python312\python.exe D:\driver.py"
         parts2 = _split_command(cmd_unquoted)
         assert parts2 == [r"C:\Python312\python.exe", r"D:\driver.py"]
+
+
+RUST_DRIVER = Path(__file__).resolve().parents[3] / "install" / "drivers" / "rust_ast.py"
+
+
+@pytest.mark.parametrize("interpreter", ["python3", "python"])
+def test_python_driver_runs_when_interpreter_name_is_not_on_path(tmp_path, monkeypatch, interpreter):
+    """A python.org install on Windows has no python3.exe (#144); the driver
+    must still run, using the interpreter that is running soma."""
+    empty_bin = tmp_path / "empty-bin"
+    empty_bin.mkdir()
+    monkeypatch.setenv("PATH", str(empty_bin))
+    source = tmp_path / "lib.rs"
+    source.write_text("fn alpha() {}\nfn beta() { alpha(); }\n", encoding="utf-8")
+
+    registry = ASTDriverRegistry({".rs": f"{interpreter} {RUST_DRIVER}"})
+    result = ASTDriverRunner(registry=registry).parse_file(source, workspace_root=tmp_path)
+
+    assert result.language == "rust"
+    assert {"alpha", "beta"} <= {d.name for d in result.definitions}
+
+
+def test_resolve_driver_executable_deterministic_tokens(tmp_path, monkeypatch):
+    from soma_core.ast.runner import resolve_driver_executable
+    empty_bin = tmp_path / "empty-bin"
+    empty_bin.mkdir()
+    monkeypatch.setenv("PATH", str(empty_bin))
+    monkeypatch.chdir(empty_bin)
+
+    # Python tokens resolve to the active interpreter regardless of PATH
+    assert resolve_driver_executable("python3") == sys.executable
+    assert resolve_driver_executable("python3.exe") == sys.executable
+    assert resolve_driver_executable("python") == sys.executable
+    assert resolve_driver_executable("PYTHON") == sys.executable
+    assert resolve_driver_executable("{python}") == sys.executable
+    assert resolve_driver_executable("node") is None
+
+    monkeypatch.setattr(sys, "executable", "")
+    assert resolve_driver_executable("python3") is None
+    assert resolve_driver_executable("{python}") is None
+
+
+def test_in_process_rust_driver_execution(tmp_path):
+    """Verify built-in Rust AST driver executes in-process with zero subprocess overhead."""
+    source = tmp_path / "lib.rs"
+    source.write_text("pub fn calculate(x: i32) -> i32 { x * 2 }\n", encoding="utf-8")
+
+    registry = ASTDriverRegistry({".rs": "{python} .soma/drivers/rust_ast.py"})
+    runner = ASTDriverRunner(registry=registry)
+    result = runner.parse_file(source, workspace_root=tmp_path)
+
+    assert result.language == "rust"
+    assert len(result.definitions) == 1
+    assert result.definitions[0].name == "calculate"
+    assert result.definitions[0].is_exported is True

@@ -7,6 +7,7 @@ from pathlib import Path
 import shlex
 import shutil
 import subprocess
+import sys
 from typing import Any, Dict, List, Mapping, Optional, Union
 
 from soma_core.ast.drivers.python import parse_python_ast
@@ -20,7 +21,15 @@ __all__ = [
     "NoDriverConfiguredError",
     "ASTDriverRegistry",
     "ASTDriverRunner",
+    "resolve_driver_executable",
 ]
+
+_PYTHON_NAMES = frozenset({"{python}", "python3", "python", "python.exe", "python3.exe"})
+
+
+def _is_python_name(name: str) -> bool:
+    clean = name.strip().lower()
+    return clean in _PYTHON_NAMES
 
 
 class ASTDriverError(SomaError):
@@ -109,6 +118,20 @@ def _split_command(cmd: str) -> list[str]:
     return shlex.split(cmd)
 
 
+def resolve_driver_executable(name: str) -> Optional[str]:
+    """Return the path a driver command's executable resolves to, or None.
+
+    Placeholder tokens '{python}', 'python3', and 'python' resolve deterministically
+    to the active Python interpreter running Soma (sys.executable). Other commands
+    are resolved via PATH.
+    """
+    clean = name.strip()
+    if _is_python_name(clean):
+        return sys.executable if sys.executable else None
+
+    return shutil.which(clean)
+
+
 class ASTDriverRunner:
     """Dispatches AST parsing to native Python or external driver subprocesses."""
 
@@ -144,7 +167,7 @@ class ASTDriverRunner:
 
         ext = target_path.suffix.lower()
 
-        # Fast path: Native Python driver
+        # Fast path 1: Native Python driver
         if ext == ".py":
             return parse_python_ast(target_path)
 
@@ -155,9 +178,24 @@ class ASTDriverRunner:
                 f"No AST driver configured for extension '{ext}' on {target_path.name}"
             )
 
+        # Fast path 2: Built-in Rust driver executed in-process
+        if ext == ".rs" and "rust_ast.py" in driver_cmd:
+            try:
+                from soma_core.ast.drivers.templates.rust_ast import parse_rust_source
+
+                source = target_path.read_text(encoding="utf-8", errors="replace")
+                ast_dict = parse_rust_source(source, str(target_path))
+                return NormalizedAST.from_dict(ast_dict)
+            except Exception as exc:
+                raise ASTDriverError(
+                    f"In-process Rust AST driver failed on {target_path.name}: {exc}"
+                ) from exc
+
         cmd_parts = _split_command(driver_cmd)
         if not cmd_parts:
             raise ASTDriverError(f"Empty driver command for extension '{ext}'")
+        if _is_python_name(cmd_parts[0]):
+            cmd_parts[0] = resolve_driver_executable(cmd_parts[0]) or cmd_parts[0]
 
         full_cmd = cmd_parts + [str(target_path)]
 

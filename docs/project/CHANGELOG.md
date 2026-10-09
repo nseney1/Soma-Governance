@@ -3,6 +3,31 @@
 All notable changes to Soma are documented here.
 This project uses [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+## [1.4.0] — 2026-10-09 — "Cross-Platform Execution & Safe Claude Lifecycle"
+
+### Cross-Platform Execution, Windows Toolchain Hardening & Claude Lifecycle Parity
+- **Safe Claude Configuration Lifecycle & Data Loss Prevention (BUG-088, [#142](https://github.com/nseney1/Soma-Governance/issues/142))**:
+  - Delimited injected Soma instructions in `CLAUDE.md` with `<!-- SOMA:START -->` and `<!-- SOMA:END -->` markers.
+  - Hardened `soma uninstall --platform claude` to parse and excise only the Soma-governed block, completely preserving user-authored custom instructions and notes. `CLAUDE.md` is deleted only if no non-Soma content remains.
+  - Automatically cleans up `soma` from `mcpServers` in `.mcp.json` / `.claude.json` upon uninstallation.
+- **Unified Claude Rules Directory & Path Parity (BUG-089, [#143](https://github.com/nseney1/Soma-Governance/issues/143))**:
+  - Fixed `soma init --platform claude` to install rules and `CLAUDE.md` to user home (`~/.claude/`), resolving parity conflicts with `soma doctor`, `soma status`, and `soma uninstall`.
+  - Replaced improper use of `args._project_root` as home override with explicit `_home` / `_home_override` test seams.
+- **Rust AST Driver on Windows Python.org Installs (BUG-086, [#144](https://github.com/nseney1/Soma-Governance/issues/144))**:
+  - The AST driver runner and `soma doctor` now resolve a bare `python3`/`python` driver command that is not on `PATH` to the interpreter running Soma (`sys.executable`), bypassing missing `python3.exe` on python.org Windows installations and 0-byte Windows Store execution aliases.
+- **Test Harness Hardening & Symlink Fallbacks (BUG-087, [#145](https://github.com/nseney1/Soma-Governance/issues/145))**:
+  - Added `anyio` to `[dev]` extras and CI pinned dependencies so `test_async_atomic_write_text` reliably executes on all environments.
+  - Switched direct `symlink_to()` calls to `conftest.symlink_or_skip` so test suites pass on Windows environments without Developer Mode or administrative privileges.
+- **Claude Platform Adapter Refactoring (`soma_cli/platforms/claude.py`)**:
+  - Replaced deeply nested `if/elif/else` ladders in `ClaudeAdapter` with modular, single-purpose helper functions: `_inject_soma_section`, `_strip_soma_section`, `_uninstall_claude_md`, and `_clean_mcp_config`.
+  - Flattened `install()` and `uninstall()` methods into linear, declarative routines with isolated exception handling.
+- **AST Driver Architectural Cleanup & Deterministic Token Resolution (`soma_core/ast/runner.py`, `soma_core/ast/detect.py`)**:
+  - Introduced deterministic `{python}` token support in `slots.yaml`, expanding directly to `sys.executable` across all platforms at runtime.
+  - Added an in-process fast path for the bundled Rust AST driver (`rust_ast.py`), parsing Rust sources directly via `parse_rust_source` with zero subprocess overhead.
+  - Purged platform-specific heuristic string sniffing (such as `windowsapps` alias detection and OS branching) from `soma_core/ast/runner.py`, restoring core engine purity. *(Note: The interim `windowsapps` string heuristic was refactored and eliminated prior to release and is not in production; v1.4.0 relies exclusively on deterministic `{python}` token expansion and in-process execution.)*
+
 ## [1.3.0] — 2026-10-08 — "Unified CLI Command Architecture & Discovery"
 
 ### Unified CLI Command Architecture, Modular Subcommands & Categorized Discovery

@@ -47,11 +47,11 @@ def bash():
     return require_bash()
 
 
-def symlink_or_skip(target, link):
+def symlink_or_skip(target, link, target_is_directory: bool = False):
     """Create a symlink, or skip: Windows needs Developer Mode or admin
     rights (WinError 1314)."""
     try:
-        os.symlink(str(target), str(link))
+        os.symlink(str(target), str(link), target_is_directory=target_is_directory)
     except (OSError, NotImplementedError):
         # On POSIX a failure here is a test bug; don't let it hide the
         # symlink-escape security tests behind a skip.

@@ -5,7 +5,7 @@ from soma_sdk.errors import CellNotFoundError, CellParseError, SomaError
 from soma_core.scoring import wilson_lower_bound
 from soma_core.lifecycle import bayesian_fitness
 
-__version__ = '1.3.0'
+__version__ = '1.4.0'
 __all__ = [
     'Governance',
     'Cell',
