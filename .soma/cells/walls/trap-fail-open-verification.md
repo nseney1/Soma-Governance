@@ -27,10 +27,10 @@ tags:
 fitness:
   score: 0.8333
   impact_weight: 1.0
-  triggers: 37
-  true_positives: 8.1705
-  false_positives: 5.1673
-  last_trigger_date: "2026-10-08T09:12:32Z"
+  triggers: 41
+  true_positives: 8.2657
+  false_positives: 5.2625
+  last_trigger_date: "2026-10-09T13:25:38Z"
 ---
 
 Verification tools MUST fail-closed: any execution error must produce a

@@ -217,3 +217,20 @@ class TestStatus:
         with patch("soma_cli.status.run_status", return_value=0) as mock_run:
             assert cmd.execute(parsed) == 0
             mock_run.assert_called_once_with(parsed)
+
+    def test_status_with_project_root_counts_platform_rules(self, tmp_path, capsys):
+        """Regression test for BUG-090: _project_root set by cli.py must not skip rule counting."""
+        proj = tmp_path / "project"
+        proj.mkdir()
+        home = tmp_path / "home"
+        claude_dir = home / ".claude"
+        claude_dir.mkdir(parents=True)
+        (claude_dir / "rule1.md").write_text("# Rule 1\n")
+        (claude_dir / "rule2.md").write_text("# Rule 2\n")
+
+        args = argparse.Namespace(_project_root=proj, _home=home)
+        ret = run_status(args)
+        assert ret == 0
+        captured = capsys.readouterr()
+        assert "2 active" in captured.out
+

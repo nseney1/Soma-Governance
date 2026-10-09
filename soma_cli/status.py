@@ -304,16 +304,17 @@ def run_status(args: argparse.Namespace) -> int:
     core_files: list[Path] = []
     merged_rules: list[dict] = []
     has_merged_soma = False
-    explicit_root = getattr(args, '_root', getattr(args, '_project_root', None))
+    test_mode = getattr(args, '_root', None) is not None
+    home = getattr(args, '_home', getattr(args, '_home_override', None)) or Path.home()
 
-    if explicit_root is None:
+    if not test_mode:
         try:
             from soma_cli.init import detect_platform, get_rules_dir
             platform = detect_platform(proj)
             if platform == "unknown":
-                platform = detect_platform(Path.home())
+                platform = detect_platform(home)
             if platform != "unknown":
-                rules_dir = get_rules_dir(platform, project_root=proj)
+                rules_dir = get_rules_dir(platform, home=home, project_root=proj)
                 if rules_dir.is_dir():
                     for p in sorted(rules_dir.glob("*.md")):
                         if p.is_file() and p.name.lower() not in ("readme.md", "claude.md"):

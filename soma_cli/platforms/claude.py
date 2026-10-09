@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import shutil
 from typing import Any
 
 from soma_cli.platforms.base import PlatformAdapter, PlatformInstallResult
@@ -117,15 +118,26 @@ class ClaudeAdapter(PlatformAdapter):
     def render_config(self) -> str:
         """Render governance instructions to embed in CLAUDE.md."""
         rules = self.get_source_rules()
-        rule_list = "\n".join(f"- `{r.stem}`: {r.name}" for r in rules[:10])
-        body = (
-            "# Soma Governance Integration\n\n"
-            "This project is governed by Soma. Rules are checked adaptively.\n\n"
-            "## Active Core Rules\n"
-            f"{rule_list}\n\n"
-            "Run `soma doctor` to verify system health.\n"
-        )
-        return f"{SOMA_MARKER_START}\n{body}{SOMA_MARKER_END}\n"
+        sections = []
+        for r in rules:
+            try:
+                content = r.read_text(encoding="utf-8").strip()
+                sections.append(f"## {r.stem}\n\n{content}")
+            except Exception:
+                pass
+        if sections:
+            body = (
+                "# Soma Governance Rules\n\n"
+                + "\n\n---\n\n".join(sections)
+                + "\n\nRun `soma doctor` to verify system health.\n"
+            )
+        else:
+            body = (
+                "# Soma Governance Integration\n\n"
+                "This project is governed by Soma. Rules are checked adaptively.\n\n"
+                "Run `soma doctor` to verify system health.\n"
+            )
+        return f"{SOMA_MARKER_START}\n{body}\n{SOMA_MARKER_END}\n"
 
     def render_mcp_config(self) -> dict[str, Any]:
         """Render standard MCP server configuration for Claude."""
@@ -145,10 +157,20 @@ class ClaudeAdapter(PlatformAdapter):
             scope="local" if local else "global",
         )
         claude_md, _ = self.get_target_paths(local=local)
+        rules_dir = self.workspace / ".claude" if local else self.home / ".claude"
+
+        # 1. Install rule files
+        for rule in self.get_source_rules():
+            dest = rules_dir / rule.name
+            if not dest.exists():
+                if not dry_run:
+                    rules_dir.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(rule, dest)
+                result.installed_files.append(dest)
 
         if dry_run:
             result.installed_files.append(claude_md)
-            result.messages.append(f"Installed Claude configuration to {claude_md}")
+            result.messages.append(f"[dry-run] Would install Claude configuration to {claude_md}")
             return result
 
         try:
@@ -171,7 +193,9 @@ class ClaudeAdapter(PlatformAdapter):
             scope="local" if local else "global",
         )
         claude_md, mcp_json = self.get_target_paths(local=local)
+        rules_dir = self.workspace / ".claude" if local else self.home / ".claude"
 
+        # 1. Clean CLAUDE.md
         try:
             if _uninstall_claude_md(claude_md, dry_run=dry_run):
                 result.uninstalled_files.append(claude_md)
@@ -179,10 +203,33 @@ class ClaudeAdapter(PlatformAdapter):
             result.errors.append(f"Failed to remove {claude_md}: {exc}")
             result.success = False
 
-        if _clean_mcp_config(mcp_json, dry_run=dry_run):
-            result.uninstalled_files.append(mcp_json)
+        # 2. Clean rule files from rules_dir
+        if rules_dir.is_dir():
+            for rule in self.get_source_rules():
+                rule_file = rules_dir / rule.name
+                if rule_file.is_file():
+                    if dry_run:
+                        result.uninstalled_files.append(rule_file)
+                    else:
+                        try:
+                            rule_file.unlink()
+                            result.uninstalled_files.append(rule_file)
+                        except Exception as exc:
+                            result.errors.append(f"Failed to remove {rule_file}: {exc}")
+                            result.success = False
 
-        result.messages.append(f"Uninstalled Claude configuration from {claude_md}")
+        # 3. Clean MCP config (check both target mcp_json and workspace .mcp.json)
+        mcp_targets = [mcp_json]
+        ws_mcp = self.workspace / ".mcp.json"
+        if ws_mcp not in mcp_targets and ws_mcp.is_file():
+            mcp_targets.append(ws_mcp)
+
+        for target in mcp_targets:
+            if _clean_mcp_config(target, dry_run=dry_run):
+                result.uninstalled_files.append(target)
+
+        action = "[dry-run] Would uninstall" if dry_run else "Uninstalled"
+        result.messages.append(f"{action} Claude configuration from {claude_md}")
         return result
 
     def verify(self, local: bool = False) -> bool:

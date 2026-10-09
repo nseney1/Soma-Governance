@@ -79,6 +79,32 @@ def test_detect_test_runner(tmp_path: Path, monkeypatch):
     assert name == "Makefile"
 
 
+def test_detect_test_runner_skips_makefile_when_make_missing(tmp_path: Path, monkeypatch):
+    """BUG-094: When make binary is not on PATH, Makefile test target is skipped."""
+    import shutil
+    monkeypatch.setattr(shutil, "which", lambda cmd: None if cmd == "make" else "/usr/bin/" + cmd)
+    (tmp_path / "Makefile").write_text("test:\n\tpytest\n", encoding="utf-8")
+    cmd, name = detect_test_runner(str(tmp_path))
+    assert cmd is None
+    assert name is None
+
+
+def test_run_verify_command_not_found(monkeypatch):
+    """BUG-094: Exit code 127 must be treated as passed=None (unverified), not passed=False."""
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        lambda *a, **kw: subprocess.CompletedProcess(
+            args="nonexistent_cmd", returncode=127, stdout="", stderr="sh: nonexistent_cmd: not found"
+        ),
+    )
+    outcome = _run_verify("nonexistent_cmd", cwd=".")
+    assert outcome["exit_code"] == 127
+    assert outcome["passed"] is None
+    assert "command not found" in outcome["error"]
+
+
+
 def test_capture_test_outcome(tmp_path: Path, monkeypatch):
     ws = str(tmp_path)
     # No test runner

@@ -97,14 +97,14 @@ def test_claude_adapter_preserves_user_content_on_uninstall(tmp_path):
     adapter = ClaudeAdapter(workspace=workspace, home=home)
     install_res = adapter.install(local=True, dry_run=False)
     assert install_res.success
-    assert "Soma Governance Integration" in claude_md.read_text(encoding="utf-8")
+    assert "Soma Governance Rules" in claude_md.read_text(encoding="utf-8")
     assert "# My Custom Claude Config" in claude_md.read_text(encoding="utf-8")
 
     uninstall_res = adapter.uninstall(local=True, dry_run=False)
     assert uninstall_res.success
     assert claude_md.is_file(), "CLAUDE.md was deleted instead of preserving user content!"
     assert claude_md.read_text(encoding="utf-8").strip() == user_content.strip()
-    assert "Soma Governance Integration" not in claude_md.read_text(encoding="utf-8")
+    assert "Soma Governance Rules" not in claude_md.read_text(encoding="utf-8")
     assert not adapter.verify(local=True)
 
 
@@ -268,3 +268,43 @@ def test_mcp_adapter_install_and_uninstall(tmp_path):
     un_res = adapter.uninstall(local=True, dry_run=False)
     assert un_res.success
     assert not adapter.verify(local=True)
+
+
+def test_claude_adapter_cleans_rule_files_on_uninstall(tmp_path):
+    """BUG-091: ClaudeAdapter uninstall removes rule files installed in rules directory."""
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    home = tmp_path / "home"
+    home.mkdir()
+
+    adapter = ClaudeAdapter(workspace=workspace, home=home)
+    install_res = adapter.install(local=False, dry_run=False)
+    assert install_res.success
+    claude_dir = home / ".claude"
+    assert (claude_dir / "CLAUDE.md").is_file()
+    # Starter rules should have been installed
+    assert (claude_dir / "providence.md").is_file()
+
+    un_res = adapter.uninstall(local=False, dry_run=False)
+    assert un_res.success
+    assert not (claude_dir / "providence.md").exists()
+
+
+def test_claude_adapter_dry_run_wording(tmp_path):
+    """BUG-093: Dry-run uninstall uses [dry-run] Would uninstall prefix."""
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    home = tmp_path / "home"
+    home.mkdir()
+
+    adapter = ClaudeAdapter(workspace=workspace, home=home)
+    adapter.install(local=False, dry_run=False)
+    claude_dir = home / ".claude"
+    assert (claude_dir / "CLAUDE.md").is_file()
+
+    dry_res = adapter.uninstall(local=False, dry_run=True)
+    assert dry_res.success
+    assert any("[dry-run] Would uninstall" in msg for msg in dry_res.messages)
+    # File must still exist after dry-run
+    assert (claude_dir / "CLAUDE.md").is_file()
+
