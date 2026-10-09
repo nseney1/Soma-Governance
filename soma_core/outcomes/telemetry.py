@@ -67,7 +67,7 @@ def detect_test_runner(workspace: str) -> tuple[Optional[str], Optional[str]]:
         ("jest.config.js", "jest", "npx jest --silent --no-coverage 2>&1", "npx jest --version 2>/dev/null"),
         ("jest.config.ts", "jest", "npx jest --silent --no-coverage 2>&1", "npx jest --version 2>/dev/null"),
         ("vitest.config.ts", "vitest", "npx vitest run --reporter=dot 2>&1", "npx vitest --version 2>/dev/null"),
-        ("package.json", "npm test", "npm test 2>&1", "npm --version 2>/dev/null"),
+        ("package.json", "npm test", "npm test 2>&1", None),
         ("go.mod", "go test", "go test ./... -count=1 -short 2>&1", "go version 2>/dev/null"),
         ("Cargo.toml", "cargo test", "cargo test --quiet 2>&1", "cargo --version 2>/dev/null"),
     ]
