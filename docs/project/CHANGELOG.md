@@ -26,7 +26,7 @@ This project uses [Semantic Versioning](https://semver.org/).
 - **AST Driver Architectural Cleanup & Deterministic Token Resolution (`soma_core/ast/runner.py`, `soma_core/ast/detect.py`)**:
   - Introduced deterministic `{python}` token support in `slots.yaml`, expanding directly to `sys.executable` across all platforms at runtime.
   - Added an in-process fast path for the bundled Rust AST driver (`rust_ast.py`), parsing Rust sources directly via `parse_rust_source` with zero subprocess overhead.
-  - Purged platform-specific heuristic string sniffing (such as `windowsapps` alias detection and OS branching) from `soma_core/ast/runner.py`, restoring core engine purity.
+  - Purged platform-specific heuristic string sniffing (such as `windowsapps` alias detection and OS branching) from `soma_core/ast/runner.py`, restoring core engine purity. *(Note: The interim `windowsapps` string heuristic was refactored and eliminated prior to release and is not in production; v1.4.0 relies exclusively on deterministic `{python}` token expansion and in-process execution.)*
 
 ## [1.3.0] — 2026-10-08 — "Unified CLI Command Architecture & Discovery"
 

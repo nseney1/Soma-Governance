@@ -59,7 +59,7 @@ def test_detect_fix_provisions_slots(tmp_path, capsys):
     code_again = main(["detect", "--workspace", str(tmp_path)])
     assert code_again == 0
     out = capsys.readouterr().out
-    assert "configured: python3 .soma/drivers/rust_ast.py" in out
+    assert "configured: {python} .soma/drivers/rust_ast.py" in out
     assert ".rs" in out
 
 
