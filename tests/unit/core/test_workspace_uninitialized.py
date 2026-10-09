@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from conftest import symlink_or_skip
 from soma_core.errors import WorkspaceBareRepoError, WorkspaceError
 from soma_core.workspace import Workspace, resolve_git_hooks_dir
 
@@ -27,7 +28,7 @@ class TestWorkspaceForInit:
         real_dir = tmp_path / "real_dir"
         real_dir.mkdir()
         sym_dir = tmp_path / "sym_dir"
-        sym_dir.symlink_to(real_dir, target_is_directory=True)
+        symlink_or_skip(real_dir, sym_dir, target_is_directory=True)
 
         with pytest.raises(WorkspaceError, match="symlink"):
             Workspace.for_init(sym_dir)

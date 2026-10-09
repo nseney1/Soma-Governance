@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import pytest
 
+from conftest import symlink_or_skip
 from soma_core.somayaml import (
     SomaYAML,
     SomaDocument,
@@ -407,15 +408,9 @@ class TestSomaYAMLBranchHardening:
         with pytest.raises(FileNotFoundError, match="File does not exist"):
             SomaYAML.parse_file("missing.md", ws)
 
-        # symlink detection
+        # valid file
         real_file = tmp_path / "target.md"
         real_file.write_text("---\nid: sym-target\n---\n", encoding="utf-8")
-        symlink_file = tmp_path / "link.md"
-        symlink_file.symlink_to(real_file)
-        with pytest.raises(SomaYAMLError, match="Symlink parsing prohibited"):
-            SomaYAML.parse_file("link.md", ws)
-
-        # valid file
         doc = SomaYAML.parse_file("target.md", ws)
         assert doc.id == "sym-target"
         assert doc.source_path == str(real_file.resolve())
@@ -427,13 +422,6 @@ class TestSomaYAMLBranchHardening:
         doc_str = SomaYAML.parse_file("target.md", StringWS())
         assert doc_str.id == "sym-target"
 
-        # workspace returning symlink path
-        class SymlinkReturnWS:
-            def confine_path(self, p):
-                return str(symlink_file)
-        with pytest.raises(SomaYAMLError, match="Symlink parsing prohibited"):
-            SomaYAML.parse_file("link.md", SymlinkReturnWS())
-
         # write_frontmatter
         out_file = tmp_path / "written.md"
         write_frontmatter(out_file, {"id": "written-id"}, "Written body")
@@ -441,6 +429,22 @@ class TestSomaYAMLBranchHardening:
         doc_written = SomaYAML.parse_file("written.md", ws)
         assert doc_written.id == "written-id"
         assert doc_written.body == "Written body"
+
+    def test_parse_file_rejects_symlinks_branch_hardening(self, tmp_path: Path):
+        ws = Workspace(tmp_path)
+        real_file = tmp_path / "target.md"
+        real_file.write_text("---\nid: sym-target\n---\n", encoding="utf-8")
+        symlink_file = tmp_path / "link.md"
+        symlink_or_skip(real_file, symlink_file)
+        with pytest.raises(SomaYAMLError, match="Symlink parsing prohibited"):
+            SomaYAML.parse_file("link.md", ws)
+
+        # workspace returning symlink path
+        class SymlinkReturnWS:
+            def confine_path(self, p):
+                return str(symlink_file)
+        with pytest.raises(SomaYAMLError, match="Symlink parsing prohibited"):
+            SomaYAML.parse_file("link.md", SymlinkReturnWS())
 
     def test_parse_cell_frontmatter_branches(self, tmp_path: Path):
         with pytest.raises(ValueError, match="No frontmatter delimiter"):

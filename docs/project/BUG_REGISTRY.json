@@ -1530,6 +1530,26 @@
       "regression_test": "tests/unit/core/test_ast_driver_runner.py::test_python_driver_runs_when_interpreter_name_is_not_on_path",
       "pattern": "Interpreter name hard-coded in a generated command instead of resolved at run time",
       "changelog_ref": "Unreleased"
+    },
+    {
+      "id": "BUG-087",
+      "issue_url": "https://github.com/nseney1/Soma-Governance/issues/145",
+      "status": "fixed",
+      "title": "Async storage test never ran on CI, and two symlink tests errored on Windows without symlink privilege",
+      "discovered_in": "v1.3.0",
+      "fixed_in": "Unreleased",
+      "root_cause": "silent_failure",
+      "severity": "low",
+      "description": "tests/unit/core/test_storage.py::test_async_atomic_write_text is marked @pytest.mark.anyio, but anyio was in neither the [dev] extras nor CI's pinned test dependencies. On CI (pytest 8.3.4) the test was skipped with PytestUnhandledCoroutineWarning on every OS, so it never ran; under pytest 9 (an unpinned [dev] install) it failed. Separately, test_somayaml.py and test_workspace_uninitialized.py called symlink_to() directly, so on Windows without Developer Mode or admin rights they raised WinError 1314 instead of skipping. anyio is now a dev and CI dependency, the 'async def functions are not natively supported' warning is an error, and both tests use conftest.symlink_or_skip.",
+      "affected_files": [
+        "pyproject.toml",
+        ".github/workflows/validate.yml",
+        "tests/unit/core/test_somayaml.py",
+        "tests/unit/core/test_workspace_uninitialized.py"
+      ],
+      "regression_test": "tests/unit/core/test_storage.py::test_async_atomic_write_text",
+      "pattern": "Missing test plugin degrades to a silent skip instead of a failure",
+      "changelog_ref": "Unreleased"
     }
   ]
 }
